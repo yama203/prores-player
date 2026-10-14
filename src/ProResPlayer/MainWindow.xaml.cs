@@ -38,6 +38,7 @@ public partial class MainWindow : Window
 		InitializeComponent();
 		_timer.Tick += OnTick;
 		_statusTimer.Tick += (_, _) => { StatusText.Text = ""; _statusTimer.Stop(); };
+		SeekBar.AddHandler(PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(OnSeekBarDown), true);
 
 		Rect work = SystemParameters.WorkArea;
 		Width = Math.Min(Width, work.Width * 0.9);
@@ -273,19 +274,73 @@ public partial class MainWindow : Window
 		SeekTo(Math.Max(0, _a.Duration - (fps > 0 ? 1.0 / fps : 0.04)));
 	}
 
-	// Seek bar
-	private void OnSeekBarDown(object sender, MouseButtonEventArgs e) => _seekDragging = true;
+	// Seek bar scrubbing. The slider's own dragging only works on the thumb, so the mouse is handled
+	// here: press anywhere on the bar, drag to scrub (playback is held meanwhile), release to land
+	// exactly on the frame and resume if it was playing.
+	private bool _resumeAfterScrub;
+
+	private void OnSeekBarDown(object sender, MouseButtonEventArgs e)
+	{
+		if (_a == null || !_a.HasFile)
+			return;
+		_seekDragging = true;
+		_resumeAfterScrub = !_a.Paused;
+		Pause();
+		SeekBar.CaptureMouse();
+		ScrubTo(e.GetPosition(SeekBar), exact: false);
+		e.Handled = true;
+	}
+
+	private void OnSeekBarMove(object sender, MouseEventArgs e)
+	{
+		if (_seekDragging && e.LeftButton == MouseButtonState.Pressed)
+			ScrubTo(e.GetPosition(SeekBar), exact: false);
+	}
 
 	private void OnSeekBarUp(object sender, MouseButtonEventArgs e)
 	{
+		if (!_seekDragging)
+			return;
+		ScrubTo(e.GetPosition(SeekBar), exact: true);
 		_seekDragging = false;
-		SeekTo(SeekBar.Value);
+		SeekBar.ReleaseMouseCapture();
+		if (_resumeAfterScrub)
+		{
+			_a!.Paused = false;
+			if (Comparing)
+				_b!.Paused = false;
+		}
+		e.Handled = true;
+	}
+
+	private void ScrubTo(Point p, bool exact)
+	{
+		if (_a == null)
+			return;
+		double t;
+		if (SeekBar.Template.FindName("PART_Track", SeekBar) is System.Windows.Controls.Primitives.Track track)
+			t = track.ValueFromPoint(SeekBar.TranslatePoint(p, track));
+		else
+			t = p.X / Math.Max(1, SeekBar.ActualWidth) * SeekBar.Maximum;
+		t = Math.Clamp(t, 0, SeekBar.Maximum);
+
+		_updatingSeekBar = true;
+		SeekBar.Value = t;
+		_updatingSeekBar = false;
+
+		if (exact)
+			SeekTo(t);
+		else
+		{
+			_a.SeekScrub(t);
+			if (Comparing)
+				_b!.SeekScrub(t);
+		}
 	}
 
 	private void OnSeekBarChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
 	{
-		if (!_updatingSeekBar && _seekDragging)
-			SeekTo(e.NewValue);
+		// Keyboard / programmatic changes only; mouse scrubbing is handled above.
 	}
 
 	// ------------------------------------------------------------------------------------------

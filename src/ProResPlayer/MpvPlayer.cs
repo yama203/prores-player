@@ -126,6 +126,9 @@ public sealed class MpvPlayer : IDisposable
 
 	public void SeekAbsolute(double seconds) => Command("seek", seconds.ToString("R", CultureInfo.InvariantCulture), "absolute+exact");
 
+	/// <summary>Fast seek for scrubbing: keyframe-only (every frame for ProRes, nearest GOP start for H.264).</summary>
+	public void SeekScrub(double seconds) => Command("seek", seconds.ToString("R", CultureInfo.InvariantCulture), "absolute+keyframes");
+
 	public void SeekRelative(double seconds) => Command("seek", seconds.ToString("R", CultureInfo.InvariantCulture), "relative+exact");
 
 	/// <summary>Writes the current frame at source resolution (no OSD) to a PNG. Synchronous.</summary>

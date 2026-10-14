@@ -47,9 +47,10 @@
           <Canvas x:Name="LoopCanvas" Height="4" VerticalAlignment="Bottom" Margin="5,0">
             <Rectangle x:Name="LoopRect" Height="4" Fill="{StaticResource Accent}" Visibility="Collapsed"/>
           </Canvas>
-          <Slider x:Name="SeekBar" Minimum="0" Maximum="1" IsMoveToPointEnabled="True" Focusable="False"
+          <!-- Mouse down is hooked in code (handledEventsToo) because Slider's class handler marks it handled. -->
+          <Slider x:Name="SeekBar" Minimum="0" Maximum="1" Focusable="False"
                   ValueChanged="OnSeekBarChanged"
-                  PreviewMouseLeftButtonDown="OnSeekBarDown" PreviewMouseLeftButtonUp="OnSeekBarUp"/>
+                  PreviewMouseMove="OnSeekBarMove" PreviewMouseLeftButtonUp="OnSeekBarUp"/>
         </Grid>
 
         <DockPanel LastChildFill="False">
