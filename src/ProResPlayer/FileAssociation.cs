@@ -11,7 +11,7 @@ public static class FileAssociation
 {
 	private const string AppKey = @"Software\Classes\Applications\ProResPlayer.exe";
 	private const string ProgId = "ProResPlayer.Movie";
-	public static readonly string[] Extensions = { ".mov", ".mp4", ".mxf", ".mkv" };
+	public static readonly string[] Extensions = { ".mov", ".mp4", ".m4v", ".mxf", ".mkv", ".avi", ".webm" };
 
 	public static void Register()
 	{

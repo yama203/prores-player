@@ -4,6 +4,8 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -14,11 +16,13 @@ public partial class MainWindow : Window
 	private enum CompareMode { Off, Side, Wipe }
 
 	private const double Gap = 2;	// divider between A and B, in DIPs
-	private const string FileFilter = "動画 (*.mov;*.mp4;*.mxf;*.mkv)|*.mov;*.mp4;*.mxf;*.mkv|すべてのファイル (*.*)|*.*";
+	private const string FileFilter = "動画 (*.mov;*.mp4;*.m4v;*.mxf;*.mkv;*.avi;*.webm)|*.mov;*.mp4;*.m4v;*.mxf;*.mkv;*.avi;*.webm|すべてのファイル (*.*)|*.*";
 
 	private MpvPlayer? _a;
 	private MpvPlayer? _b;
 	private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(33) };
+	private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+	private string? _lastSaveDir;
 
 	private CompareMode _compare = CompareMode.Off;
 	private string _background = "checker";
@@ -33,6 +37,7 @@ public partial class MainWindow : Window
 	{
 		InitializeComponent();
 		_timer.Tick += OnTick;
+		_statusTimer.Tick += (_, _) => { StatusText.Text = ""; _statusTimer.Stop(); };
 
 		Rect work = SystemParameters.WorkArea;
 		Width = Math.Min(Width, work.Width * 0.9);
@@ -268,6 +273,79 @@ public partial class MainWindow : Window
 	{
 		if (!_updatingSeekBar && _seekDragging)
 			SeekTo(e.NewValue);
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Frame export
+	// ------------------------------------------------------------------------------------------
+
+	private long CurrentFrame => _a != null && _a.Fps > 0 ? (long)Math.Round(_a.Time * _a.Fps) : 0;
+
+	private void ShowStatus(string text)
+	{
+		StatusText.Text = text;
+		_statusTimer.Stop();
+		_statusTimer.Start();
+	}
+
+	private void OnSaveFrame(object sender, RoutedEventArgs e) => SaveFrame();
+
+	private void SaveFrame()
+	{
+		if (_a?.Path is not string video)
+			return;
+		Pause();
+		var dlg = new SaveFileDialog
+		{
+			Filter = "PNG (*.png)|*.png",
+			FileName = $"{Path.GetFileNameWithoutExtension(video)}_f{CurrentFrame:00000}.png",
+			InitialDirectory = _lastSaveDir ?? Path.GetDirectoryName(video),
+		};
+		if (dlg.ShowDialog(this) != true)
+			return;
+		_lastSaveDir = Path.GetDirectoryName(dlg.FileName);
+		if (File.Exists(dlg.FileName))
+			File.Delete(dlg.FileName);	// mpv does not overwrite
+		ShowStatus(_a.Screenshot(dlg.FileName) ? "保存しました: " + Path.GetFileName(dlg.FileName) : "保存に失敗しました");
+	}
+
+	private void OnCopyFrame(object sender, RoutedEventArgs e) => CopyFrame();
+
+	/// <summary>
+	/// Puts the frame on the clipboard as "PNG" (keeps alpha; Photoshop, Office, browsers) and as a
+	/// regular bitmap for everything else.
+	/// </summary>
+	private void CopyFrame()
+	{
+		if (_a == null || !_a.HasFile)
+			return;
+		Pause();
+		string tmp = Path.Combine(Path.GetTempPath(), "ProResPlayer_clipboard.png");
+		if (File.Exists(tmp))
+			File.Delete(tmp);
+		// mpv's 8-bit screenshots drop alpha, so grab 16-bit RGBA and reduce to 8-bit BGRA here.
+		if (!_a.Screenshot(tmp, highBitDepth: true))
+		{
+			ShowStatus("コピーに失敗しました");
+			return;
+		}
+		BitmapSource src;
+		using (var fs = File.OpenRead(tmp))
+			src = new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+		var bgra = new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+		bgra.Freeze();
+
+		var png = new MemoryStream();
+		var enc = new PngBitmapEncoder();
+		enc.Frames.Add(BitmapFrame.Create(bgra));
+		enc.Save(png);
+		png.Position = 0;
+
+		var data = new DataObject();
+		data.SetData("PNG", png);
+		data.SetImage(bgra);
+		Clipboard.SetDataObject(data, true);
+		ShowStatus($"コピーしました (フレーム {CurrentFrame})");
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -691,6 +769,8 @@ public partial class MainWindow : Window
 
 		switch (e.Key)
 		{
+			case Key.S when ctrl: SaveFrame(); break;
+			case Key.C when ctrl: CopyFrame(); break;
 			case Key.O when ctrl && shift: OnOpenB(this, e); break;
 			case Key.O when ctrl: OnOpen(this, e); break;
 			case Key.Space: TogglePlay(); break;
@@ -744,7 +824,9 @@ public partial class MainWindow : Window
 			"Tab          情報パネル\n" +
 			"F / F11      全画面 (Esc で戻る)\n" +
 			"Ctrl+O       開く\n" +
-			"Ctrl+Shift+O 比較用 (B) を開く\n\n" +
+			"Ctrl+Shift+O 比較用 (B) を開く\n" +
+			"Ctrl+S       フレームを PNG で保存\n" +
+			"Ctrl+C       フレームをコピー\n\n" +
 			"動画の上でクリック: 再生/一時停止、ダブルクリック: 全画面\n" +
 			"ファイルを2つ同時にドロップすると A と B に読み込みます。",
 			"ショートカット");

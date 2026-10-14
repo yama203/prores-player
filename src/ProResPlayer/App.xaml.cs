@@ -9,6 +9,13 @@ public partial class App : Application
 
 	protected override void OnStartup(StartupEventArgs e)
 	{
+		// --register / --unregister: set up "Open with" without showing the window.
+		if (e.Args.Length > 0 && (e.Args[0] == "--register" || e.Args[0] == "--unregister"))
+		{
+			if (e.Args[0] == "--register") FileAssociation.Register(); else FileAssociation.Unregister();
+			Shutdown();
+			return;
+		}
 		StartupFiles = e.Args;
 		DispatcherUnhandledException += (_, ex) =>
 		{
@@ -19,5 +26,7 @@ public partial class App : Application
 			ex.Handled = true;
 		};
 		base.OnStartup(e);
+		MainWindow = new MainWindow();
+		MainWindow.Show();
 	}
 }

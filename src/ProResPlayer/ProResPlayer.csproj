@@ -14,7 +14,12 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>0.1.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\app.ico" Link="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- libmpv is not in git; run tools/get-libmpv.ps1 first. -->

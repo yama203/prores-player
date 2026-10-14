@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace ProResPlayer;
@@ -36,6 +37,11 @@ public sealed class MpvPlayer : IDisposable
 		SetOption("terminal", "no");
 		SetOption("audio-display", "no");
 		SetOption("background-color", "#000000");
+		SetOption("screenshot-format", "png");
+		SetOption("screenshot-png-compression", "3");
+		SetOption("screenshot-high-bit-depth", "yes");
+		// GPU screenshots are blended onto the background (checkerboard); software ones keep alpha.
+		SetOption("screenshot-sw", "yes");
 
 		int err = LibMpv.Initialize(_ctx);
 		if (err < 0)
@@ -121,6 +127,13 @@ public sealed class MpvPlayer : IDisposable
 	public void SeekAbsolute(double seconds) => Command("seek", seconds.ToString("R", CultureInfo.InvariantCulture), "absolute+exact");
 
 	public void SeekRelative(double seconds) => Command("seek", seconds.ToString("R", CultureInfo.InvariantCulture), "relative+exact");
+
+	/// <summary>Writes the current frame at source resolution (no OSD) to a PNG. Synchronous.</summary>
+	public bool Screenshot(string path, bool highBitDepth = true)
+	{
+		Set("screenshot-high-bit-depth", highBitDepth ? "yes" : "no");
+		return Command("screenshot-to-file", path, "video") >= 0 && File.Exists(path);
+	}
 
 	public void FrameStep() => Command("frame-step");
 
