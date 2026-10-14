@@ -70,7 +70,7 @@ public partial class MainWindow : Window
 		HostB.Clicked += (_, _) => { FocusSelf(); TogglePlay(); };
 		HostB.DoubleClicked += (_, _) => { FocusSelf(); TogglePlay(); ToggleFullscreen(); };
 
-		ApplyBackground(_a);
+		SetBackground(_settings.Background is "checker" or "black" or "white" or "alpha" ? _settings.Background : "black");
 		SetLoopFile(LoopCheck.IsChecked == true);	// loop is on by default
 		SetInfoVisible(_settings.InfoPanel);	// restore last open / closed state
 		UpdateAssociationMenu();
@@ -474,6 +474,11 @@ public partial class MainWindow : Window
 	private void SetBackground(string mode)
 	{
 		_background = mode;
+		if (_settings.Background != mode)
+		{
+			_settings.Background = mode;
+			_settings.Save();
+		}
 		ApplyBackground(_a);
 		ApplyBackground(_b);
 		_syncingUi = true;

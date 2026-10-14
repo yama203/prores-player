@@ -8,6 +8,9 @@ public sealed class AppSettings
 {
 	public bool InfoPanel { get; set; } = true;
 
+	/// <summary>checker / black / white / alpha</summary>
+	public string Background { get; set; } = "black";
+
 	private static string FilePath =>
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ProResPlayer", "settings.json");
 
