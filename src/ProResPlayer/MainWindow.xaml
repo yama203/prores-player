@@ -1,0 +1,115 @@
+<Window x:Class="ProResPlayer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ProResPlayer"
+        Title="ProRes Player" Width="1280" Height="800" MinWidth="720" MinHeight="420"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" AllowDrop="True"
+        Drop="OnDrop" DragOver="OnDragOver" PreviewKeyDown="OnKeyDown"
+        Loaded="OnLoaded" Closed="OnClosed">
+  <DockPanel>
+    <!-- Menu -->
+    <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="{StaticResource Panel}" Foreground="{StaticResource Fg}">
+      <MenuItem Header="ファイル(_F)" Foreground="{StaticResource Fg}">
+        <MenuItem Header="開く..." InputGestureText="Ctrl+O" Click="OnOpen" Foreground="Black"/>
+        <MenuItem Header="比較用に開く (B)..." InputGestureText="Ctrl+Shift+O" Click="OnOpenB" Foreground="Black"/>
+        <Separator/>
+        <MenuItem x:Name="AssocItem" Header="「プログラムから開く」に登録" Click="OnToggleAssociation" Foreground="Black"/>
+        <Separator/>
+        <MenuItem Header="終了" Click="OnExit" Foreground="Black"/>
+      </MenuItem>
+      <MenuItem Header="表示(_V)" Foreground="{StaticResource Fg}">
+        <MenuItem Header="背景: 市松模様" InputGestureText="1" Tag="checker" Click="OnBackgroundMenu" Foreground="Black"/>
+        <MenuItem Header="背景: 黒" InputGestureText="2" Tag="black" Click="OnBackgroundMenu" Foreground="Black"/>
+        <MenuItem Header="背景: 白" InputGestureText="3" Tag="white" Click="OnBackgroundMenu" Foreground="Black"/>
+        <MenuItem Header="アルファのみ" InputGestureText="4" Tag="alpha" Click="OnBackgroundMenu" Foreground="Black"/>
+        <Separator/>
+        <MenuItem x:Name="InfoItem" Header="情報パネル" InputGestureText="Tab" IsCheckable="True" IsChecked="True" Click="OnToggleInfo" Foreground="Black"/>
+        <MenuItem Header="全画面" InputGestureText="F / ダブルクリック" Click="OnToggleFullscreen" Foreground="Black"/>
+      </MenuItem>
+      <MenuItem Header="比較(_C)" Foreground="{StaticResource Fg}">
+        <MenuItem Header="オフ" Tag="off" Click="OnCompareMenu" Foreground="Black"/>
+        <MenuItem Header="左右に並べる" Tag="side" Click="OnCompareMenu" Foreground="Black"/>
+        <MenuItem Header="ワイプ" Tag="wipe" Click="OnCompareMenu" Foreground="Black"/>
+      </MenuItem>
+      <MenuItem Header="ヘルプ(_H)" Foreground="{StaticResource Fg}">
+        <MenuItem Header="ショートカット一覧" Click="OnShortcuts" Foreground="Black"/>
+      </MenuItem>
+    </Menu>
+
+    <!-- Transport / controls -->
+    <Border x:Name="ControlBar" DockPanel.Dock="Bottom" Background="{StaticResource Panel}" Padding="10,6,10,8">
+      <StackPanel>
+        <Grid Margin="0,0,0,6">
+          <!-- loop range drawn under the seek bar -->
+          <Canvas x:Name="LoopCanvas" Height="4" VerticalAlignment="Bottom" Margin="5,0">
+            <Rectangle x:Name="LoopRect" Height="4" Fill="{StaticResource Accent}" Visibility="Collapsed"/>
+          </Canvas>
+          <Slider x:Name="SeekBar" Minimum="0" Maximum="1" IsMoveToPointEnabled="True" Focusable="False"
+                  ValueChanged="OnSeekBarChanged"
+                  PreviewMouseLeftButtonDown="OnSeekBarDown" PreviewMouseLeftButtonUp="OnSeekBarUp"/>
+        </Grid>
+
+        <DockPanel LastChildFill="False">
+          <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+            <Button Content="⏮" ToolTip="先頭 (Home)" Click="OnGoStart"/>
+            <Button Content="◀|" ToolTip="1フレーム戻る (←)" Click="OnStepBack"/>
+            <Button x:Name="PlayButton" Content="▶" MinWidth="44" ToolTip="再生 / 一時停止 (Space)" Click="OnPlayPause"/>
+            <Button Content="|▶" ToolTip="1フレーム進む (→)" Click="OnStepForward"/>
+            <Button Content="⏭" ToolTip="末尾 (End)" Click="OnGoEnd"/>
+
+            <Rectangle Width="1" Fill="#444" Margin="10,2"/>
+
+            <Button Content="IN" ToolTip="ループ開始点 (I)" Click="OnSetIn"/>
+            <Button Content="OUT" ToolTip="ループ終了点 (O)" Click="OnSetOut"/>
+            <Button Content="✕" ToolTip="ループ範囲をクリア (P)" Click="OnClearLoop"/>
+            <CheckBox x:Name="LoopCheck" Content="ループ" ToolTip="ループ再生 (L)" Click="OnLoopCheck"/>
+
+            <Rectangle Width="1" Fill="#444" Margin="10,2"/>
+
+            <TextBlock x:Name="TimecodeText" Text="00:00:00:00" FontFamily="Consolas" FontSize="20" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBlock x:Name="FrameText" Text="0 / 0" FontFamily="Consolas" FontSize="14" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="6,0"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+            <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+            <ComboBox x:Name="BackgroundBox" Width="120" SelectionChanged="OnBackgroundBox">
+              <ComboBoxItem Content="市松模様" Tag="checker" IsSelected="True"/>
+              <ComboBoxItem Content="黒" Tag="black"/>
+              <ComboBoxItem Content="白" Tag="white"/>
+              <ComboBoxItem Content="アルファのみ" Tag="alpha"/>
+            </ComboBox>
+            <TextBlock Text="比較" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <ComboBox x:Name="CompareBox" Width="110" SelectionChanged="OnCompareBox">
+              <ComboBoxItem Content="オフ" Tag="off" IsSelected="True"/>
+              <ComboBoxItem Content="左右" Tag="side"/>
+              <ComboBoxItem Content="ワイプ" Tag="wipe"/>
+            </ComboBox>
+            <Slider x:Name="WipeSlider" Width="160" Minimum="0" Maximum="1" Value="0.5" Focusable="False"
+                    VerticalAlignment="Center" Visibility="Collapsed" ValueChanged="OnWipeChanged" ToolTip="ワイプ位置 ([ / ])"/>
+          </StackPanel>
+        </DockPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Info panel -->
+    <Border x:Name="InfoPanel" DockPanel.Dock="Right" Width="270" Background="{StaticResource Panel}" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Text="A" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+          <TextBlock x:Name="InfoA" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,16" Text="ファイルをドロップするか Ctrl+O で開きます"/>
+          <StackPanel x:Name="InfoBPanel" Visibility="Collapsed">
+            <TextBlock Text="B" FontWeight="Bold" Foreground="#6BB3F0"/>
+            <TextBlock x:Name="InfoB" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- Video area. Hosted Win32 windows cannot be overlapped by WPF content, so the
+         wipe divider is the gap between host A and host B. -->
+    <Grid x:Name="VideoArea" Background="#6BB3F0" SizeChanged="OnVideoAreaSizeChanged" ClipToBounds="True">
+      <local:VideoHost x:Name="HostA" HorizontalAlignment="Stretch"/>
+      <local:VideoHost x:Name="HostB" HorizontalAlignment="Right" Visibility="Collapsed"/>
+    </Grid>
+  </DockPanel>
+</Window>
