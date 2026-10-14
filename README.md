@@ -31,8 +31,8 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 ## インストール（このPCのユーザーだけ、管理者権限なし）
 
 ```powershell
-.	ools\install.ps1             # %LOCALAPPDATA%\Programs\ProResPlayer にコピー、スタートメニュー登録、「プログラムから開く」に登録
-.	ools\install.ps1 -Uninstall  # 元に戻す
+.\tools\install.ps1             # %LOCALAPPDATA%\Programs\ProResPlayer にコピー、スタートメニュー登録、「プログラムから開く」に登録
+.\tools\install.ps1 -Uninstall  # 元に戻す
 ```
 
 コマンドラインで `ProResPlayer.exe --register` / `--unregister` でも登録・解除できます。
@@ -46,7 +46,7 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 .\tools\publish.ps1           # dist\ProResPlayer\ に実行用フォルダを作る
 ```
 
-アイコン（`assetspp.ico`）は `.	ools\make-icon.ps1` で作り直せます。
+アイコン（`assets\app.ico`）は `.\tools\make-icon.ps1` で作り直せます。
 
 開発中は `dotnet build -c Release src\ProResPlayer` で `src\ProResPlayer\bin\Release\net8.0-windows\win-x64\` にできます。
 
