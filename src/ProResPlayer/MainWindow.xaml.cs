@@ -104,7 +104,7 @@ public partial class MainWindow : Window
 		if (_a == null)
 			return;
 		_a.Load(path);
-		_a.Paused = true;
+		_a.Paused = false;	// start playing as soon as a file is opened
 		_infoPathA = null;
 		ClearLoop();
 		Title = "ProRes Player - " + Path.GetFileName(path);
