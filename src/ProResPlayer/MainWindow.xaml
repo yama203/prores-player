@@ -81,6 +81,8 @@
           </StackPanel>
 
           <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+            <Button x:Name="InfoButton" Content="情報 ▶" MinWidth="64" Margin="0,0,10,0"
+                    ToolTip="情報パネルを出す / 閉じる (Tab)" Click="OnInfoButton"/>
             <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
             <ComboBox x:Name="BackgroundBox" Width="120" SelectionChanged="OnBackgroundBox">
               <ComboBoxItem Content="市松模様" Tag="checker"/>
@@ -105,7 +107,12 @@
     <Border x:Name="InfoPanel" DockPanel.Dock="Right" Width="270" Background="{StaticResource Panel}" Padding="12">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel>
-          <TextBlock Text="A" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+          <DockPanel Margin="0,0,0,2">
+            <Button DockPanel.Dock="Right" Content="✕" MinWidth="24" Height="22" Padding="0" Margin="0"
+                    AutomationProperties.Name="情報パネルを閉じる"
+                    Background="Transparent" BorderBrush="Transparent" ToolTip="情報パネルを閉じる (Tab)" Click="OnInfoButton"/>
+            <TextBlock Text="A" FontWeight="Bold" Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+          </DockPanel>
           <TextBlock x:Name="InfoA" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,16" Text="ファイルをドロップするか Ctrl+O で開きます"/>
           <StackPanel x:Name="InfoBPanel" Visibility="Collapsed">
             <TextBlock Text="B" FontWeight="Bold" Foreground="#6BB3F0"/>

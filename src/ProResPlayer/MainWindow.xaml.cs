@@ -773,10 +773,14 @@ public partial class MainWindow : Window
 
 	private void OnToggleInfo(object sender, RoutedEventArgs e) => SetInfoVisible(InfoItem.IsChecked);
 
+	private void OnInfoButton(object sender, RoutedEventArgs e) => SetInfoVisible(!InfoItem.IsChecked);
+
 	private void SetInfoVisible(bool on)
 	{
 		InfoItem.IsChecked = on;
 		InfoPanel.Visibility = on && !_fullscreen ? Visibility.Visible : Visibility.Collapsed;
+		// The arrow points the way the panel will move: ▶ hides it to the right, ◀ brings it back.
+		InfoButton.Content = on ? "情報 ▶" : "◀ 情報";
 	}
 
 	private void OnToggleFullscreen(object sender, RoutedEventArgs e) => ToggleFullscreen();
