@@ -23,6 +23,7 @@ public partial class MainWindow : Window
 	private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(33) };
 	private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(4) };
 	private string? _lastSaveDir;
+	private readonly AppSettings _settings = AppSettings.Load();
 
 	private CompareMode _compare = CompareMode.Off;
 	private string _background = "black";
@@ -71,6 +72,7 @@ public partial class MainWindow : Window
 
 		ApplyBackground(_a);
 		SetLoopFile(LoopCheck.IsChecked == true);	// loop is on by default
+		SetInfoVisible(_settings.InfoPanel);	// restore last open / closed state
 		UpdateAssociationMenu();
 
 		string[] files = App.StartupFiles.Where(File.Exists).ToArray();
@@ -778,6 +780,11 @@ public partial class MainWindow : Window
 	private void SetInfoVisible(bool on)
 	{
 		InfoItem.IsChecked = on;
+		if (_settings.InfoPanel != on)
+		{
+			_settings.InfoPanel = on;
+			_settings.Save();
+		}
 		InfoPanel.Visibility = on && !_fullscreen ? Visibility.Visible : Visibility.Collapsed;
 		// The arrow points the way the panel will move: ▶ hides it to the right, ◀ brings it back.
 		InfoButton.Content = on ? "情報 ▶" : "◀ 情報";

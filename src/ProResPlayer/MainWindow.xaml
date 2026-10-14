@@ -53,53 +53,67 @@
                   PreviewMouseMove="OnSeekBarMove" PreviewMouseLeftButtonUp="OnSeekBarUp"/>
         </Grid>
 
-        <DockPanel LastChildFill="False">
-          <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+        <!-- Left: transport + time | centre: loop (and status) | right: view, export, info panel -->
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Grid.Column="0" Orientation="Horizontal">
             <Button Content="⏮" ToolTip="先頭 (Home)" Click="OnGoStart"/>
             <Button Content="◀|" ToolTip="1フレーム戻る (←)" Click="OnStepBack"/>
-            <Button x:Name="PlayButton" Content="▶" MinWidth="44" ToolTip="再生 / 一時停止 (Space)" Click="OnPlayPause"/>
+            <Button x:Name="PlayButton" Content="▶" MinWidth="48" FontSize="14" ToolTip="再生 / 一時停止 (Space)" Click="OnPlayPause"/>
             <Button Content="|▶" ToolTip="1フレーム進む (→)" Click="OnStepForward"/>
             <Button Content="⏭" ToolTip="末尾 (End)" Click="OnGoEnd"/>
-
-            <Rectangle Width="1" Fill="#444" Margin="10,2"/>
-
-            <Button Content="IN" ToolTip="ループ開始点 (I)" Click="OnSetIn"/>
-            <Button Content="OUT" ToolTip="ループ終了点 (O)" Click="OnSetOut"/>
-            <Button Content="✕" ToolTip="ループ範囲をクリア (P)" Click="OnClearLoop"/>
-            <CheckBox x:Name="LoopCheck" Content="ループ" ToolTip="ループ再生 (L)" IsChecked="True" Click="OnLoopCheck"/>
-
-            <Rectangle Width="1" Fill="#444" Margin="10,2"/>
-
-            <Button Content="PNG" ToolTip="フレームを PNG で保存 (Ctrl+S)" Click="OnSaveFrame"/>
-            <Button Content="コピー" ToolTip="フレームをクリップボードにコピー (Ctrl+C)" Click="OnCopyFrame"/>
-
-            <Rectangle Width="1" Fill="#444" Margin="10,2"/>
-
-            <TextBlock x:Name="TimecodeText" Text="00:00:00:00" FontFamily="Consolas" FontSize="20" VerticalAlignment="Center" Margin="6,0"/>
-            <TextBlock x:Name="FrameText" Text="0 / 0" FontFamily="Consolas" FontSize="14" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="6,0"/>
-            <TextBlock x:Name="StatusText" Foreground="{StaticResource Accent}" VerticalAlignment="Center" Margin="10,0" TextTrimming="CharacterEllipsis" MaxWidth="360"/>
+            <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
+              <TextBlock x:Name="TimecodeText" Text="00:00:00:00" FontFamily="Consolas" FontSize="18" LineHeight="20"/>
+              <TextBlock x:Name="FrameText" Text="0 / 0" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource Dim}"/>
+            </StackPanel>
           </StackPanel>
 
-          <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-            <Button x:Name="InfoButton" Content="情報 ▶" MinWidth="64" Margin="0,0,10,0"
-                    ToolTip="情報パネルを出す / 閉じる (Tab)" Click="OnInfoButton"/>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Border BorderBrush="#3C3C3C" BorderThickness="1" CornerRadius="6" Padding="4,3" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal">
+                <ToggleButton x:Name="LoopCheck" Content="⟲ ループ" IsChecked="True" ToolTip="ループ再生 オン / オフ (L)" Click="OnLoopCheck"/>
+                <Button Content="IN" ToolTip="ループ開始点を今の位置に (I)" Click="OnSetIn"/>
+                <Button Content="OUT" ToolTip="ループ終了点を今の位置に (O)" Click="OnSetOut"/>
+                <Button Content="クリア" ToolTip="IN / OUT をクリア (P)" Click="OnClearLoop"/>
+              </StackPanel>
+            </Border>
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource Accent}" VerticalAlignment="Center" Margin="12,0,0,0"
+                       TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal">
             <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
-            <ComboBox x:Name="BackgroundBox" Width="120" SelectionChanged="OnBackgroundBox">
+            <ComboBox x:Name="BackgroundBox" Width="110" SelectionChanged="OnBackgroundBox">
               <ComboBoxItem Content="市松模様" Tag="checker"/>
               <ComboBoxItem Content="黒" Tag="black" IsSelected="True"/>
               <ComboBoxItem Content="白" Tag="white"/>
               <ComboBoxItem Content="アルファのみ" Tag="alpha"/>
             </ComboBox>
-            <TextBlock Text="比較" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="8,0,0,0"/>
-            <ComboBox x:Name="CompareBox" Width="110" SelectionChanged="OnCompareBox">
+            <TextBlock Text="比較" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+            <ComboBox x:Name="CompareBox" Width="90" SelectionChanged="OnCompareBox">
               <ComboBoxItem Content="オフ" Tag="off" IsSelected="True"/>
               <ComboBoxItem Content="左右" Tag="side"/>
               <ComboBoxItem Content="ワイプ" Tag="wipe"/>
             </ComboBox>
-            <Slider x:Name="WipeSlider" Width="160" Minimum="0" Maximum="1" Value="0.5" Focusable="False"
+            <Slider x:Name="WipeSlider" Width="140" Minimum="0" Maximum="1" Value="0.5" Focusable="False"
                     VerticalAlignment="Center" Visibility="Collapsed" ValueChanged="OnWipeChanged" ToolTip="ワイプ位置 ([ / ])"/>
+
+            <Rectangle Style="{StaticResource Divider}"/>
+
+            <Button Content="PNG 保存" ToolTip="今のフレームを PNG で保存 (Ctrl+S)" Click="OnSaveFrame"/>
+            <Button Content="コピー" ToolTip="今のフレームをクリップボードにコピー (Ctrl+C)" Click="OnCopyFrame"/>
+
+            <Rectangle Style="{StaticResource Divider}"/>
+
+            <Button x:Name="InfoButton" Content="情報 ▶" MinWidth="64" Margin="2,0,0,0"
+                    ToolTip="情報パネルを出す / 閉じる (Tab)" Click="OnInfoButton"/>
           </StackPanel>
-        </DockPanel>
+        </Grid>
       </StackPanel>
     </Border>
 
