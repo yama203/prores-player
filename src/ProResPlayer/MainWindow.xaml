@@ -65,7 +65,7 @@
             <Button Content="IN" ToolTip="ループ開始点 (I)" Click="OnSetIn"/>
             <Button Content="OUT" ToolTip="ループ終了点 (O)" Click="OnSetOut"/>
             <Button Content="✕" ToolTip="ループ範囲をクリア (P)" Click="OnClearLoop"/>
-            <CheckBox x:Name="LoopCheck" Content="ループ" ToolTip="ループ再生 (L)" Click="OnLoopCheck"/>
+            <CheckBox x:Name="LoopCheck" Content="ループ" ToolTip="ループ再生 (L)" IsChecked="True" Click="OnLoopCheck"/>
 
             <Rectangle Width="1" Fill="#444" Margin="10,2"/>
 
@@ -82,8 +82,8 @@
           <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
             <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
             <ComboBox x:Name="BackgroundBox" Width="120" SelectionChanged="OnBackgroundBox">
-              <ComboBoxItem Content="市松模様" Tag="checker" IsSelected="True"/>
-              <ComboBoxItem Content="黒" Tag="black"/>
+              <ComboBoxItem Content="市松模様" Tag="checker"/>
+              <ComboBoxItem Content="黒" Tag="black" IsSelected="True"/>
               <ComboBoxItem Content="白" Tag="white"/>
               <ComboBoxItem Content="アルファのみ" Tag="alpha"/>
             </ComboBox>

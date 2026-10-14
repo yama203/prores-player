@@ -25,7 +25,7 @@ public partial class MainWindow : Window
 	private string? _lastSaveDir;
 
 	private CompareMode _compare = CompareMode.Off;
-	private string _background = "checker";
+	private string _background = "black";
 	private string? _infoPathA, _infoPathB;
 	private string? _pathB;	// set as soon as B is requested; mpv loads asynchronously
 	private bool _seekDragging, _updatingSeekBar, _syncingUi;
@@ -69,6 +69,7 @@ public partial class MainWindow : Window
 		HostB.DoubleClicked += (_, _) => { FocusSelf(); TogglePlay(); ToggleFullscreen(); };
 
 		ApplyBackground(_a);
+		SetLoopFile(LoopCheck.IsChecked == true);	// loop is on by default
 		UpdateAssociationMenu();
 
 		string[] files = App.StartupFiles.Where(File.Exists).ToArray();
@@ -130,6 +131,7 @@ public partial class MainWindow : Window
 		UpdateLayout();
 		_b = new MpvPlayer(HostB.Handle);
 		_b.Set("mute", "yes");
+		_b.Set("loop-file", LoopCheck.IsChecked == true ? "inf" : "no");
 		ApplyBackground(_b);
 	}
 
@@ -177,6 +179,9 @@ public partial class MainWindow : Window
 		if (_a == null || !_a.HasFile)
 			return;
 		bool pause = !_a.Paused;
+		// Pressing play on the last frame (loop off, or after stepping there) starts over from the top.
+		if (!pause && AtEnd())
+			SeekTo(0);
 		_a.Paused = pause;
 		if (Comparing)
 		{
@@ -184,6 +189,14 @@ public partial class MainWindow : Window
 			if (pause)
 				SyncBToA();
 		}
+	}
+
+	private bool AtEnd()
+	{
+		if (_a!.Get("eof-reached") == "yes")
+			return true;
+		double fps = _a.Fps, dur = _a.Duration;
+		return fps > 0 && dur > 0 && _a.Time >= dur - 1.5 / fps;
 	}
 
 	private void Pause()
