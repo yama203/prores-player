@@ -318,8 +318,16 @@ public partial class MainWindow : Window
 		if (_a == null)
 			return;
 		double t;
-		if (SeekBar.Template.FindName("PART_Track", SeekBar) is System.Windows.Controls.Primitives.Track track)
-			t = track.ValueFromPoint(SeekBar.TranslatePoint(p, track));
+		// Map the cursor to the value whose thumb centre sits under it. Track.ValueFromPoint is not used:
+		// it works relative to the thumb's current position, so the first click landed off the cursor.
+		if (SeekBar.Template.FindName("PART_Track", SeekBar) is System.Windows.Controls.Primitives.Track track
+			&& track.ActualWidth > 0)
+		{
+			double thumbW = track.Thumb?.ActualWidth ?? 0;
+			double x = SeekBar.TranslatePoint(p, track).X;
+			double usable = Math.Max(1, track.ActualWidth - thumbW);
+			t = (x - thumbW / 2) / usable * (SeekBar.Maximum - SeekBar.Minimum) + SeekBar.Minimum;
+		}
 		else
 			t = p.X / Math.Max(1, SeekBar.ActualWidth) * SeekBar.Maximum;
 		t = Math.Clamp(t, 0, SeekBar.Maximum);
