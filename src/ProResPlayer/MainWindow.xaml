@@ -71,10 +71,20 @@
               <TextBlock x:Name="TimecodeText" Text="00:00:00:00" FontFamily="Consolas" FontSize="18" LineHeight="20"/>
               <TextBlock x:Name="FrameText" Text="0 / 0" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource Dim}"/>
             </StackPanel>
+
+            <Rectangle Style="{StaticResource Divider}"/>
+
+            <!-- Previous / next movie in the same folder -->
+            <Button x:Name="PrevFileButton" Content="◀ 前" MinWidth="44" Click="OnPrevFile" IsEnabled="False"
+                    ToolTip="同じフォルダの前の動画 (Ctrl+← / PageUp)"/>
+            <TextBlock x:Name="FilePosText" Text="" FontFamily="Consolas" FontSize="12" Foreground="{StaticResource Dim}"
+                       VerticalAlignment="Center" MinWidth="44" TextAlignment="Center"/>
+            <Button x:Name="NextFileButton" Content="次 ▶" MinWidth="44" Click="OnNextFile" IsEnabled="False"
+                    ToolTip="同じフォルダの次の動画 (Ctrl+→ / PageDown)"/>
           </StackPanel>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-            <Border BorderBrush="#3C3C3C" BorderThickness="1" CornerRadius="6" Padding="4,3" VerticalAlignment="Center">
+          <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
+            <Border BorderBrush="#3C3C3C" BorderThickness="1" CornerRadius="6" Padding="4,3" HorizontalAlignment="Center">
               <StackPanel Orientation="Horizontal">
                 <ToggleButton x:Name="LoopCheck" Content="⟲ ループ" IsChecked="True" ToolTip="ループ再生 オン / オフ (L)" Click="OnLoopCheck"/>
                 <Button Content="IN" ToolTip="ループ開始点を今の位置に (I)" Click="OnSetIn"/>
@@ -82,20 +92,21 @@
                 <Button Content="クリア" ToolTip="IN / OUT をクリア (P)" Click="OnClearLoop"/>
               </StackPanel>
             </Border>
-            <TextBlock x:Name="StatusText" Foreground="{StaticResource Accent}" VerticalAlignment="Center" Margin="12,0,0,0"
-                       TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+            <!-- Short-lived messages (saved, copied, last file...) under the loop controls so they never push the bar sideways. -->
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource Accent}" FontSize="11" HorizontalAlignment="Center" Visibility="Collapsed"
+                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal">
             <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
-            <ComboBox x:Name="BackgroundBox" Width="110" SelectionChanged="OnBackgroundBox">
+            <ComboBox x:Name="BackgroundBox" Width="100" SelectionChanged="OnBackgroundBox">
               <ComboBoxItem Content="市松模様" Tag="checker"/>
               <ComboBoxItem Content="黒" Tag="black" IsSelected="True"/>
               <ComboBoxItem Content="白" Tag="white"/>
               <ComboBoxItem Content="アルファのみ" Tag="alpha"/>
             </ComboBox>
             <TextBlock Text="比較" Foreground="{StaticResource Dim}" VerticalAlignment="Center" Margin="6,0,0,0"/>
-            <ComboBox x:Name="CompareBox" Width="90" SelectionChanged="OnCompareBox">
+            <ComboBox x:Name="CompareBox" Width="76" SelectionChanged="OnCompareBox">
               <ComboBoxItem Content="オフ" Tag="off" IsSelected="True"/>
               <ComboBoxItem Content="左右" Tag="side"/>
               <ComboBoxItem Content="ワイプ" Tag="wipe"/>

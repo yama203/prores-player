@@ -21,6 +21,9 @@ if ($Uninstall) {
 }
 
 & (Join-Path $root "tools\publish.ps1")
+# Start from an empty folder: leftovers of a self-contained install (hostfxr.dll etc.) make the
+# framework-dependent exe look for .NET in the app folder and fail to start.
+if (Test-Path $target) { Remove-Item -Recurse -Force $target }
 New-Item -ItemType Directory -Force $target | Out-Null
 Copy-Item -Recurse -Force (Join-Path $root "dist\ProResPlayer\*") $target
 

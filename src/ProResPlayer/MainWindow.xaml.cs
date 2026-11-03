@@ -38,7 +38,7 @@ public partial class MainWindow : Window
 	{
 		InitializeComponent();
 		_timer.Tick += OnTick;
-		_statusTimer.Tick += (_, _) => { StatusText.Text = ""; _statusTimer.Stop(); };
+		_statusTimer.Tick += (_, _) => { StatusText.Text = ""; StatusText.Visibility = Visibility.Collapsed; _statusTimer.Stop(); };
 		SeekBar.AddHandler(PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(OnSeekBarDown), true);
 
 		Rect work = SystemParameters.WorkArea;
@@ -111,9 +111,41 @@ public partial class MainWindow : Window
 		_infoPathA = null;
 		ClearLoop();
 		Title = "ProRes Player - " + Path.GetFileName(path);
+		UpdatePlaylist(path);
 		if (_b != null && _b.HasFile)
 			_b.SeekAbsolute(0);
 	}
+
+	// ------------------------------------------------------------------------------------------
+	// Previous / next movie in the same folder
+	// ------------------------------------------------------------------------------------------
+
+	private readonly FolderPlaylist _playlist = new();
+
+	private void UpdatePlaylist(string path)
+	{
+		_playlist.Update(path);
+		string? prev = _playlist.Neighbor(-1), next = _playlist.Neighbor(1);
+		PrevFileButton.IsEnabled = prev != null;
+		NextFileButton.IsEnabled = next != null;
+		PrevFileButton.ToolTip = (prev != null ? Path.GetFileName(prev) + "\n" : "") + "同じフォルダの前の動画 (Ctrl+← / PageUp)";
+		NextFileButton.ToolTip = (next != null ? Path.GetFileName(next) + "\n" : "") + "同じフォルダの次の動画 (Ctrl+→ / PageDown)";
+		FilePosText.Text = _playlist.Count > 1 ? $"{_playlist.Index + 1} / {_playlist.Count}" : "";
+	}
+
+	private void OpenNeighbor(int delta)
+	{
+		if (_a?.Path is not string current)
+			return;
+		_playlist.Update(current);	// pick up files added or removed since the last scan
+		if (_playlist.Neighbor(delta) is string target)
+			OpenA(target);
+		else
+			ShowStatus(delta < 0 ? "最初の動画です" : "最後の動画です");
+	}
+
+	private void OnPrevFile(object sender, RoutedEventArgs e) => OpenNeighbor(-1);
+	private void OnNextFile(object sender, RoutedEventArgs e) => OpenNeighbor(1);
 
 	private void OpenB(string path)
 	{
@@ -362,6 +394,7 @@ public partial class MainWindow : Window
 	private void ShowStatus(string text)
 	{
 		StatusText.Text = text;
+		StatusText.Visibility = Visibility.Visible;
 		_statusTimer.Stop();
 		_statusTimer.Start();
 	}
@@ -670,6 +703,7 @@ public partial class MainWindow : Window
 			_infoPathA = pathA;
 			InfoA.Text = BuildInfo(_a);
 			Title = "ProRes Player - " + Path.GetFileName(pathA);
+			UpdatePlaylist(pathA);	// also covers files dropped straight onto the video
 			LayoutVideo();
 		}
 		if (_b != null)
@@ -866,6 +900,10 @@ public partial class MainWindow : Window
 			case Key.O when ctrl && shift: OnOpenB(this, e); break;
 			case Key.O when ctrl: OnOpen(this, e); break;
 			case Key.Space: TogglePlay(); break;
+			case Key.Left when ctrl: OpenNeighbor(-1); break;
+			case Key.Right when ctrl: OpenNeighbor(1); break;
+			case Key.PageUp: OpenNeighbor(-1); break;
+			case Key.PageDown: OpenNeighbor(1); break;
 			case Key.Left when shift: SeekBy(-1); break;
 			case Key.Right when shift: SeekBy(1); break;
 			case Key.Left: Step(-1); break;
@@ -908,6 +946,7 @@ public partial class MainWindow : Window
 			"Shift+← / →  1秒戻る / 進む\n" +
 			"↑ / ↓        10秒進む / 戻る\n" +
 			"Home / End   先頭 / 末尾\n" +
+			"Ctrl+← / →   同じフォルダの前 / 次の動画（PageUp / PageDown でも可）\n" +
 			"I / O / P    ループ開始 / 終了 / クリア\n" +
 			"L            ループ再生 オン/オフ\n" +
 			"1 2 3 4 / A  背景: 市松 / 黒 / 白 / アルファのみ / 切り替え\n" +
