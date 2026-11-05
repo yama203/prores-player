@@ -16,6 +16,8 @@
         <MenuItem Header="フレームを PNG で保存..." InputGestureText="Ctrl+S" Click="OnSaveFrame" Foreground="Black"/>
         <MenuItem Header="フレームをコピー" InputGestureText="Ctrl+C" Click="OnCopyFrame" Foreground="Black"/>
         <Separator/>
+        <MenuItem Header="IN〜OUT をカットして保存..." InputGestureText="Ctrl+X" Click="OnCut" Foreground="Black"/>
+        <Separator/>
         <MenuItem x:Name="AssocItem" Header="「プログラムから開く」に登録" Click="OnToggleAssociation" Foreground="Black"/>
         <Separator/>
         <MenuItem Header="終了" Click="OnExit" Foreground="Black"/>
@@ -54,14 +56,20 @@
         </Grid>
 
         <!-- Left: transport + time | centre: loop (and status) | right: view, export, info panel -->
-        <Grid>
+        <!-- When the window is too narrow for one row, ArrangeControlRows moves groups to a second row. -->
+        <Grid x:Name="ControlGrid" SizeChanged="OnControlGridSizeChanged">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
 
-          <StackPanel Grid.Column="0" Orientation="Horizontal">
+          <StackPanel x:Name="LeftGroup" Grid.Column="0" Orientation="Horizontal">
             <Button Content="⏮" ToolTip="先頭 (Home)" Click="OnGoStart"/>
             <Button Content="◀|" ToolTip="1フレーム戻る (←)" Click="OnStepBack"/>
             <Button x:Name="PlayButton" Content="▶" MinWidth="48" FontSize="14" ToolTip="再生 / 一時停止 (Space)" Click="OnPlayPause"/>
@@ -83,13 +91,14 @@
                     ToolTip="同じフォルダの次の動画 (Ctrl+→ / PageDown)"/>
           </StackPanel>
 
-          <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
+          <StackPanel x:Name="CenterGroup" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
             <Border BorderBrush="#3C3C3C" BorderThickness="1" CornerRadius="6" Padding="4,3" HorizontalAlignment="Center">
               <StackPanel Orientation="Horizontal">
                 <ToggleButton x:Name="LoopCheck" Content="⟲ ループ" IsChecked="True" ToolTip="ループ再生 オン / オフ (L)" Click="OnLoopCheck"/>
-                <Button Content="IN" ToolTip="ループ開始点を今の位置に (I)" Click="OnSetIn"/>
-                <Button Content="OUT" ToolTip="ループ終了点を今の位置に (O)" Click="OnSetOut"/>
+                <Button Content="IN" ToolTip="今のフレームを開始点に（ループ / カットの範囲） (I)" Click="OnSetIn"/>
+                <Button Content="OUT" ToolTip="今のフレームを終了点に（ループ / カットの範囲） (O)" Click="OnSetOut"/>
                 <Button Content="クリア" ToolTip="IN / OUT をクリア (P)" Click="OnClearLoop"/>
+                <Button Content="✂ カット" ToolTip="IN〜OUT の範囲だけ残して保存（再エンコードなし） (Ctrl+X)" Click="OnCut"/>
               </StackPanel>
             </Border>
             <!-- Short-lived messages (saved, copied, last file...) under the loop controls so they never push the bar sideways. -->
@@ -97,7 +106,7 @@
                        TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
           </StackPanel>
 
-          <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <StackPanel x:Name="RightGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <TextBlock Text="背景" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
             <ComboBox x:Name="BackgroundBox" Width="100" SelectionChanged="OnBackgroundBox">
               <ComboBoxItem Content="市松模様" Tag="checker"/>

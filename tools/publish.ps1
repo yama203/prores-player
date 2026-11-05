@@ -6,6 +6,7 @@ param([switch]$SelfContained)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not (Test-Path (Join-Path $root "lib\libmpv-2.dll"))) { & (Join-Path $root "tools\get-libmpv.ps1") }
+if (-not (Test-Path (Join-Path $root "lib\ffmpeg\ffmpeg.exe"))) { & (Join-Path $root "tools\get-ffmpeg.ps1") }
 
 $out = Join-Path $root "dist\ProResPlayer"
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }

@@ -391,12 +391,13 @@ public partial class MainWindow : Window
 
 	private long CurrentFrame => _a != null && _a.Fps > 0 ? (long)Math.Round(_a.Time * _a.Fps) : 0;
 
-	private void ShowStatus(string text)
+	private void ShowStatus(string text, bool sticky = false)
 	{
 		StatusText.Text = text;
 		StatusText.Visibility = Visibility.Visible;
 		_statusTimer.Stop();
-		_statusTimer.Start();
+		if (!sticky)
+			_statusTimer.Start();
 	}
 
 	private void OnSaveFrame(object sender, RoutedEventArgs e) => SaveFrame();
@@ -493,6 +494,144 @@ public partial class MainWindow : Window
 		_a?.Set("loop-file", on ? "inf" : "no");
 		_b?.Set("loop-file", on ? "inf" : "no");
 		LoopCheck.IsChecked = on;
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Cut: keep IN..OUT and save it without re-encoding
+	// ------------------------------------------------------------------------------------------
+
+	private bool _cutting;
+
+	private void OnCut(object sender, RoutedEventArgs e) => _ = CutAsync();
+
+	private async Task CutAsync()
+	{
+		if (_cutting || _a?.Path is not string source || !_a.HasFile)
+			return;
+		if (!File.Exists(source))
+		{
+			ShowStatus("ローカルのファイルだけカットできます");
+			return;
+		}
+		double fps = _a.Fps, dur = _a.Duration;
+		double? a = _a.GetDouble("ab-loop-a"), b = _a.GetDouble("ab-loop-b");
+		if (fps <= 0 || dur <= 0)
+		{
+			ShowStatus("この動画はカットできません");
+			return;
+		}
+		if (!a.HasValue && !b.HasValue)
+		{
+			ShowStatus("先に IN / OUT (I / O キー) で範囲を指定してください");
+			return;
+		}
+		if (!Cutter.Available)
+		{
+			MessageBox.Show(this, "ffmpeg.exe が見つかりません:\n" + Cutter.FfmpegPath, "ProRes Player", MessageBoxButton.OK, MessageBoxImage.Error);
+			return;
+		}
+		Pause();
+
+		long total = Math.Max(1, (long)Math.Round(dur * fps));
+		long first = a.HasValue ? Math.Clamp((long)Math.Round(a.Value * fps), 0, total - 1) : 0;
+		long last = b.HasValue ? Math.Clamp((long)Math.Round(b.Value * fps), 0, total - 1) : total - 1;	// OUT frame is kept
+		if (last < first)
+			(first, last) = (last, first);
+		long count = last - first + 1;
+
+		string codec = _a.Get("current-tracks/video/codec") ?? _a.Get("video-codec") ?? "";
+		string? warning = Cutter.IsIntraOnly(codec) ? null :
+			$"この動画 ({codec}) はキーフレームの位置でしか切れないため、IN より少し前から、OUT より少し後まで入ることがあります。";
+		string range = $"{Timecode(first, fps)} 〜 {Timecode(last, fps)}   ({first} 〜 {last} f、{count} フレーム)";
+
+		var dlg = new CutDialog(this, Path.GetFileName(source), range, warning);
+		dlg.ShowDialog();
+		if (dlg.Choice == CutChoice.Cancel)
+			return;
+
+		string target = source;
+		if (dlg.Choice == CutChoice.SaveAs)
+		{
+			string ext = Path.GetExtension(source);
+			var save = new SaveFileDialog
+			{
+				Filter = $"{ext.TrimStart('.').ToUpperInvariant()} (*{ext})|*{ext}",
+				FileName = Path.GetFileNameWithoutExtension(source) + "_cut" + ext,
+				InitialDirectory = Path.GetDirectoryName(source),
+			};
+			if (save.ShowDialog(this) != true)
+				return;
+			target = save.FileName;
+		}
+		bool overwrite = string.Equals(Path.GetFullPath(target), Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase);
+
+		// Write next to the target first, so a failed cut never destroys an existing file.
+		string tmp = Path.Combine(Path.GetDirectoryName(target)!, "~" + Path.GetFileNameWithoutExtension(target) + ".cutting" + Path.GetExtension(target));
+		_cutting = true;
+		ShowStatus("カット中...", sticky: true);
+		try
+		{
+			string? error = await Cutter.CutAsync(source, tmp, first, count, fps);
+			if (error != null)
+			{
+				TryDelete(tmp);
+				ShowStatus("カットに失敗しました");
+				MessageBox.Show(this, error, "カットに失敗しました", MessageBoxButton.OK, MessageBoxImage.Error);
+				return;
+			}
+
+			if (overwrite)
+			{
+				// mpv keeps the file open; unload it (and B, if it shows the same file) before replacing.
+				_a.Command("stop");
+				if (_b != null && string.Equals(_pathB, source, StringComparison.OrdinalIgnoreCase))
+					_b.Command("stop");
+			}
+			if (!await MoveWithRetryAsync(tmp, target))
+			{
+				ShowStatus("保存に失敗しました");
+				MessageBox.Show(this, $"{Path.GetFileName(target)} を置き換えられませんでした（ほかのアプリで開かれている可能性があります）。\n\nカット結果は次の名前で残してあります:\n{tmp}",
+					"ProRes Player", MessageBoxButton.OK, MessageBoxImage.Warning);
+				if (overwrite)
+					OpenA(source);
+				return;
+			}
+
+			if (overwrite)
+			{
+				OpenA(source);
+				if (_b != null && string.Equals(_pathB, source, StringComparison.OrdinalIgnoreCase))
+					_b.Load(source);
+			}
+			else
+				UpdatePlaylist(source);	// the new file joins the folder list
+			ShowStatus($"保存しました: {Path.GetFileName(target)} ({count} フレーム)");
+		}
+		finally
+		{
+			_cutting = false;
+		}
+	}
+
+	private static async Task<bool> MoveWithRetryAsync(string from, string to)
+	{
+		for (int i = 0; i < 30; i++)
+		{
+			try
+			{
+				File.Move(from, to, overwrite: true);
+				return true;
+			}
+			catch (IOException) { }
+			catch (UnauthorizedAccessException) { }
+			await Task.Delay(100);
+		}
+		return false;
+	}
+
+	private static void TryDelete(string path)
+	{
+		try { File.Delete(path); } catch { }
 	}
 
 	private void OnSetIn(object sender, RoutedEventArgs e) => SetLoopPoint("ab-loop-a");
@@ -829,6 +968,66 @@ public partial class MainWindow : Window
 		InfoButton.Content = on ? "情報 ▶" : "◀ 情報";
 	}
 
+	private void OnControlGridSizeChanged(object sender, SizeChangedEventArgs e)
+	{
+		if (e.WidthChanged)
+			ArrangeControlRows();
+	}
+
+	/// <summary>
+	/// One row when everything fits; otherwise the right group (view / export / info) drops to a second
+	/// row, and on very narrow windows the loop / cut group joins it, so no button is ever clipped.
+	/// </summary>
+	private void ArrangeControlRows()
+	{
+		static double Need(UIElement el)
+		{
+			el.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+			return el.DesiredSize.Width;
+		}
+		double w = ControlGrid.ActualWidth;
+		double left = Need(LeftGroup), right = Need(RightGroup);
+		double center = Need(((Panel)CenterGroup).Children[0]) + 16;	// loop box + margins; the status line may be trimmed
+
+		static void Place(UIElement el, int row, int col, int span)
+		{
+			Grid.SetRow(el, row);
+			Grid.SetColumn(el, col);
+			Grid.SetColumnSpan(el, span);
+		}
+		if (left + center + right <= w)
+		{
+			Place(LeftGroup, 0, 0, 1);
+			Place(CenterGroup, 0, 1, 1);
+			Place(RightGroup, 0, 2, 1);
+			RightGroup.Margin = new Thickness(0);
+		}
+		else if (left + center <= w)
+		{
+			Place(LeftGroup, 0, 0, 1);
+			Place(CenterGroup, 0, 1, 1);
+			Place(RightGroup, 1, 0, 3);
+			RightGroup.Margin = new Thickness(0, 6, 0, 0);
+		}
+		else if (center + right <= w)
+		{
+			Place(LeftGroup, 0, 0, 3);
+			Place(CenterGroup, 1, 0, 1);
+			Place(RightGroup, 1, 2, 1);
+			RightGroup.Margin = new Thickness(0, 6, 0, 0);
+		}
+		else
+		{
+			Place(LeftGroup, 0, 0, 3);
+			Place(CenterGroup, 1, 0, 3);
+			Place(RightGroup, 2, 0, 3);
+			RightGroup.Margin = new Thickness(0, 6, 0, 0);
+		}
+		bool ownRow = Grid.GetRow(CenterGroup) == 1;
+		CenterGroup.Margin = ownRow ? new Thickness(0, 6, 8, 0) : new Thickness(8, 0, 8, 0);
+		CenterGroup.HorizontalAlignment = ownRow ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+	}
+
 	private void OnToggleFullscreen(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
 	private void ToggleFullscreen()
@@ -897,6 +1096,7 @@ public partial class MainWindow : Window
 		{
 			case Key.S when ctrl: SaveFrame(); break;
 			case Key.C when ctrl: CopyFrame(); break;
+			case Key.X when ctrl: _ = CutAsync(); break;
 			case Key.O when ctrl && shift: OnOpenB(this, e); break;
 			case Key.O when ctrl: OnOpen(this, e); break;
 			case Key.Space: TogglePlay(); break;
@@ -948,6 +1148,7 @@ public partial class MainWindow : Window
 			"Home / End   先頭 / 末尾\n" +
 			"Ctrl+← / →   同じフォルダの前 / 次の動画（PageUp / PageDown でも可）\n" +
 			"I / O / P    ループ開始 / 終了 / クリア\n" +
+			"Ctrl+X       IN〜OUT だけ残して保存（再エンコードなし）\n" +
 			"L            ループ再生 オン/オフ\n" +
 			"1 2 3 4 / A  背景: 市松 / 黒 / 白 / アルファのみ / 切り替え\n" +
 			"C            比較: オフ → 左右 → ワイプ\n" +

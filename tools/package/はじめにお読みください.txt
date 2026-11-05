@@ -24,6 +24,8 @@ Windows 用の ProRes 確認プレイヤーです。ProRes のほか、mp4 / mkv
   Ctrl+← / →       同じフォルダの前 / 次の動画（PageUp / PageDown でも可）
   1 2 3 4          背景：市松模様 / 黒 / 白 / アルファのみ
   I / O / P / L    ループ開始 / 終了 / クリア / ループ オン・オフ
+  Ctrl+X           I / O で決めた範囲だけ残して保存（再エンコードなし。上書きか別名かを選べます）
+                   ProRes はフレーム単位で正確に切れます。mp4 などはキーフレームの位置で切れます
   C                比較：オフ → 左右 → ワイプ
   Ctrl+S / Ctrl+C  今のフレームを PNG で保存 / コピー
   Tab              情報パネル
@@ -32,3 +34,4 @@ Windows 用の ProRes 確認プレイヤーです。ProRes のほか、mp4 / mkv
 
 ■ ライセンス
   再生エンジンに libmpv / FFmpeg（GPL / LGPL）を使っています。
+  カット機能用に ffmpeg.exe（gyan.dev のビルド、GPL）を app\ffmpeg に同梱しています。ライセンスは同じフォルダの LICENSE を参照してください。

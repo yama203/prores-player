@@ -24,6 +24,8 @@
   <ItemGroup>
     <!-- libmpv is not in git; run tools/get-libmpv.ps1 first. -->
     <None Include="..\..\lib\libmpv-2.dll" Link="libmpv-2.dll" CopyToOutputDirectory="PreserveNewest" />
+    <!-- ffmpeg is not in git either; run tools/get-ffmpeg.ps1. Used for lossless cutting. -->
+    <None Include="..\..\lib\ffmpeg\*" Link="ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
