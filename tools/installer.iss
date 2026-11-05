@@ -54,6 +54,7 @@ Type: dirifempty; Name: "{app}"
 
 [Files]
 Source: "{#Stage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{userprograms}\ProRes Player"; Filename: "{app}\ProResPlayer.exe"

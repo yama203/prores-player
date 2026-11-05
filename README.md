@@ -79,5 +79,14 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 
 ## ライセンス
 
-libmpv / FFmpeg は GPL / LGPL です（shinchiro のビルドは GPL）。カット用に同梱している ffmpeg.exe は gyan.dev のビルド（GPL v3）です。
-このアプリを配布する場合は、そのライセンスに従ってください。
+このアプリのソースコードは [GPL-3.0](LICENSE) です（GPL ビルドの libmpv を使っているため）。
+
+配布物（setup.exe）に同梱しているもの：
+
+| もの | ライセンス | ソース |
+|---|---|---|
+| libmpv-2.dll（[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260928) 20260928） | GPL v3 | [mpv](https://github.com/mpv-player/mpv)、ビルドに使った各ライブラリは同リリースの説明を参照 |
+| ffmpeg.exe（[gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 9.0.1 essentials） | GPL v3 | [FFmpeg bf1b838f2a](https://github.com/FFmpeg/FFmpeg/commit/bf1b838f2a)、同梱ライブラリの版はインストール先の `ffmpeg\README.txt` |
+| .NET ランタイム | MIT | [dotnet/runtime](https://github.com/dotnet/runtime)、[dotnet/wpf](https://github.com/dotnet/wpf) |
+
+FFmpeg の ProRes デコーダ / エンコーダは Apple の認定を受けたものではありません。ProRes は Apple Inc. の商標です。

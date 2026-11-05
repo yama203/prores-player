@@ -724,6 +724,7 @@ public partial class MainWindow : Window
 		_syncingUi = false;
 
 		WipeSlider.Visibility = mode == CompareMode.Wipe ? Visibility.Visible : Visibility.Collapsed;
+		RearrangeControls();
 		InfoBPanel.Visibility = mode == CompareMode.Off ? Visibility.Collapsed : Visibility.Visible;
 		if (mode == CompareMode.Off && _b != null)
 			_b.Paused = true;
@@ -974,9 +975,11 @@ public partial class MainWindow : Window
 			ArrangeControlRows();
 	}
 
+	private bool? _oneRow;
+
 	/// <summary>
-	/// One row when everything fits; otherwise the right group (view / export / info) drops to a second
-	/// row, and on very narrow windows the loop / cut group joins it, so no button is ever clipped.
+	/// One row when everything fits (transport, files | loop / cut centred | view / export), otherwise two
+	/// rows with aligned edges: transport ... loop / cut, then files ... view / export.
 	/// </summary>
 	private void ArrangeControlRows()
 	{
@@ -986,46 +989,49 @@ public partial class MainWindow : Window
 			return el.DesiredSize.Width;
 		}
 		double w = ControlGrid.ActualWidth;
-		double left = Need(LeftGroup), right = Need(RightGroup);
-		double center = Need(((Panel)CenterGroup).Children[0]) + 16;	// loop box + margins; the status line may be trimmed
+		if (w <= 0)
+			return;
+		FileDivider.Visibility = Visibility.Visible;	// measured with the divider; hidden again in two-row mode
+		double gap = 24;	// breathing room around the centred loop group
+		bool oneRow = Need(TransportGroup) + Need(FileGroup) + Need(LoopGroup) + Need(RightGroup) + 2 * gap <= w;
+		FileDivider.Visibility = oneRow ? Visibility.Visible : Visibility.Collapsed;
+		if (oneRow == _oneRow)
+			return;
+		_oneRow = oneRow;
 
-		static void Place(UIElement el, int row, int col, int span)
+		Row0.Children.Clear();
+		Row1.Children.Clear();
+		void Add(DockPanel row, FrameworkElement el, Dock? dock, HorizontalAlignment align)
 		{
-			Grid.SetRow(el, row);
-			Grid.SetColumn(el, col);
-			Grid.SetColumnSpan(el, span);
+			if (dock is Dock d)
+				DockPanel.SetDock(el, d);
+			el.HorizontalAlignment = align;
+			row.Children.Add(el);	// the last child added fills the remaining space
 		}
-		if (left + center + right <= w)
+		if (oneRow)
 		{
-			Place(LeftGroup, 0, 0, 1);
-			Place(CenterGroup, 0, 1, 1);
-			Place(RightGroup, 0, 2, 1);
-			RightGroup.Margin = new Thickness(0);
-		}
-		else if (left + center <= w)
-		{
-			Place(LeftGroup, 0, 0, 1);
-			Place(CenterGroup, 0, 1, 1);
-			Place(RightGroup, 1, 0, 3);
-			RightGroup.Margin = new Thickness(0, 6, 0, 0);
-		}
-		else if (center + right <= w)
-		{
-			Place(LeftGroup, 0, 0, 3);
-			Place(CenterGroup, 1, 0, 1);
-			Place(RightGroup, 1, 2, 1);
-			RightGroup.Margin = new Thickness(0, 6, 0, 0);
+			Add(Row0, TransportGroup, Dock.Left, HorizontalAlignment.Left);
+			Add(Row0, FileGroup, Dock.Left, HorizontalAlignment.Left);
+			Add(Row0, RightGroup, Dock.Right, HorizontalAlignment.Right);
+			Add(Row0, LoopGroup, null, HorizontalAlignment.Center);
+			Row1.Visibility = Visibility.Collapsed;
 		}
 		else
 		{
-			Place(LeftGroup, 0, 0, 3);
-			Place(CenterGroup, 1, 0, 3);
-			Place(RightGroup, 2, 0, 3);
-			RightGroup.Margin = new Thickness(0, 6, 0, 0);
+			Add(Row0, TransportGroup, Dock.Left, HorizontalAlignment.Left);
+			Add(Row0, LoopGroup, null, HorizontalAlignment.Right);
+			Add(Row1, FileGroup, Dock.Left, HorizontalAlignment.Left);
+			Add(Row1, RightGroup, null, HorizontalAlignment.Right);
+			Row1.Visibility = Visibility.Visible;
 		}
-		bool ownRow = Grid.GetRow(CenterGroup) == 1;
-		CenterGroup.Margin = ownRow ? new Thickness(0, 6, 8, 0) : new Thickness(8, 0, 8, 0);
-		CenterGroup.HorizontalAlignment = ownRow ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+		FileDivider.Visibility = oneRow ? Visibility.Visible : Visibility.Collapsed;
+	}
+
+	/// <summary>Re-evaluates the layout after a group changed width (e.g. the wipe slider appeared).</summary>
+	private void RearrangeControls()
+	{
+		_oneRow = null;
+		ArrangeControlRows();
 	}
 
 	private void OnToggleFullscreen(object sender, RoutedEventArgs e) => ToggleFullscreen();
@@ -1041,14 +1047,14 @@ public partial class MainWindow : Window
 			if (WindowState == WindowState.Maximized)
 				WindowState = WindowState.Normal;	// re-maximize so the taskbar is covered
 			WindowState = WindowState.Maximized;
-			MainMenu.Visibility = Visibility.Collapsed;
+			TopBar.Visibility = Visibility.Collapsed;
 			ControlBar.Visibility = Visibility.Collapsed;
 		}
 		else
 		{
 			WindowStyle = _prevStyle;
 			WindowState = _prevState;
-			MainMenu.Visibility = Visibility.Visible;
+			TopBar.Visibility = Visibility.Visible;
 			ControlBar.Visibility = Visibility.Visible;
 		}
 		SetInfoVisible(InfoItem.IsChecked);
