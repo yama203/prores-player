@@ -2,42 +2,42 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ProResPlayer"
-        Title="ProRes Player" Icon="app.ico" Width="1280" Height="800" MinWidth="720" MinHeight="420"
+        Title="ProRes Player" Icon="app.ico" ThemeMode="Dark" Width="1280" Height="800" MinWidth="720" MinHeight="420"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" AllowDrop="True"
         Drop="OnDrop" DragOver="OnDragOver" PreviewKeyDown="OnKeyDown"
         Loaded="OnLoaded" Closed="OnClosed">
   <DockPanel>
     <!-- Menu -->
-    <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="{StaticResource Panel}" Foreground="{StaticResource Fg}">
-      <MenuItem Header="ファイル(_F)" Foreground="{StaticResource Fg}">
-        <MenuItem Header="開く..." InputGestureText="Ctrl+O" Click="OnOpen" Foreground="Black"/>
-        <MenuItem Header="比較用に開く (B)..." InputGestureText="Ctrl+Shift+O" Click="OnOpenB" Foreground="Black"/>
+    <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="{StaticResource Panel}">
+      <MenuItem Header="ファイル(_F)">
+        <MenuItem Header="開く..." InputGestureText="Ctrl+O" Click="OnOpen"/>
+        <MenuItem Header="比較用に開く (B)..." InputGestureText="Ctrl+Shift+O" Click="OnOpenB"/>
         <Separator/>
-        <MenuItem Header="フレームを PNG で保存..." InputGestureText="Ctrl+S" Click="OnSaveFrame" Foreground="Black"/>
-        <MenuItem Header="フレームをコピー" InputGestureText="Ctrl+C" Click="OnCopyFrame" Foreground="Black"/>
+        <MenuItem Header="フレームを PNG で保存..." InputGestureText="Ctrl+S" Click="OnSaveFrame"/>
+        <MenuItem Header="フレームをコピー" InputGestureText="Ctrl+C" Click="OnCopyFrame"/>
         <Separator/>
-        <MenuItem Header="IN〜OUT をカットして保存..." InputGestureText="Ctrl+X" Click="OnCut" Foreground="Black"/>
+        <MenuItem Header="IN〜OUT をカットして保存..." InputGestureText="Ctrl+X" Click="OnCut"/>
         <Separator/>
-        <MenuItem x:Name="AssocItem" Header="「プログラムから開く」に登録" Click="OnToggleAssociation" Foreground="Black"/>
+        <MenuItem x:Name="AssocItem" Header="「プログラムから開く」に登録" Click="OnToggleAssociation"/>
         <Separator/>
-        <MenuItem Header="終了" Click="OnExit" Foreground="Black"/>
+        <MenuItem Header="終了" Click="OnExit"/>
       </MenuItem>
-      <MenuItem Header="表示(_V)" Foreground="{StaticResource Fg}">
-        <MenuItem Header="背景: 市松模様" InputGestureText="1" Tag="checker" Click="OnBackgroundMenu" Foreground="Black"/>
-        <MenuItem Header="背景: 黒" InputGestureText="2" Tag="black" Click="OnBackgroundMenu" Foreground="Black"/>
-        <MenuItem Header="背景: 白" InputGestureText="3" Tag="white" Click="OnBackgroundMenu" Foreground="Black"/>
-        <MenuItem Header="アルファのみ" InputGestureText="4" Tag="alpha" Click="OnBackgroundMenu" Foreground="Black"/>
+      <MenuItem Header="表示(_V)">
+        <MenuItem Header="背景: 市松模様" InputGestureText="1" Tag="checker" Click="OnBackgroundMenu"/>
+        <MenuItem Header="背景: 黒" InputGestureText="2" Tag="black" Click="OnBackgroundMenu"/>
+        <MenuItem Header="背景: 白" InputGestureText="3" Tag="white" Click="OnBackgroundMenu"/>
+        <MenuItem Header="アルファのみ" InputGestureText="4" Tag="alpha" Click="OnBackgroundMenu"/>
         <Separator/>
-        <MenuItem x:Name="InfoItem" Header="情報パネル" InputGestureText="Tab" IsCheckable="True" IsChecked="True" Click="OnToggleInfo" Foreground="Black"/>
-        <MenuItem Header="全画面" InputGestureText="F / ダブルクリック" Click="OnToggleFullscreen" Foreground="Black"/>
+        <MenuItem x:Name="InfoItem" Header="情報パネル" InputGestureText="Tab" IsCheckable="True" IsChecked="True" Click="OnToggleInfo"/>
+        <MenuItem Header="全画面" InputGestureText="F / ダブルクリック" Click="OnToggleFullscreen"/>
       </MenuItem>
-      <MenuItem Header="比較(_C)" Foreground="{StaticResource Fg}">
-        <MenuItem Header="オフ" Tag="off" Click="OnCompareMenu" Foreground="Black"/>
-        <MenuItem Header="左右に並べる" Tag="side" Click="OnCompareMenu" Foreground="Black"/>
-        <MenuItem Header="ワイプ" Tag="wipe" Click="OnCompareMenu" Foreground="Black"/>
+      <MenuItem Header="比較(_C)">
+        <MenuItem Header="オフ" Tag="off" Click="OnCompareMenu"/>
+        <MenuItem Header="左右に並べる" Tag="side" Click="OnCompareMenu"/>
+        <MenuItem Header="ワイプ" Tag="wipe" Click="OnCompareMenu"/>
       </MenuItem>
-      <MenuItem Header="ヘルプ(_H)" Foreground="{StaticResource Fg}">
-        <MenuItem Header="ショートカット一覧" Click="OnShortcuts" Foreground="Black"/>
+      <MenuItem Header="ヘルプ(_H)">
+        <MenuItem Header="ショートカット一覧" Click="OnShortcuts"/>
       </MenuItem>
     </Menu>
 
@@ -92,7 +92,7 @@
           </StackPanel>
 
           <StackPanel x:Name="CenterGroup" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0" ClipToBounds="True">
-            <Border BorderBrush="#3C3C3C" BorderThickness="1" CornerRadius="6" Padding="4,3" HorizontalAlignment="Center">
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="6" Padding="4,3" HorizontalAlignment="Center">
               <StackPanel Orientation="Horizontal">
                 <ToggleButton x:Name="LoopCheck" Content="⟲ ループ" IsChecked="True" ToolTip="ループ再生 オン / オフ (L)" Click="OnLoopCheck"/>
                 <Button Content="IN" ToolTip="今のフレームを開始点に（ループ / カットの範囲） (I)" Click="OnSetIn"/>

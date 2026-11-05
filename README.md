@@ -1,4 +1,4 @@
-# ProRes Player
+﻿# ProRes Player
 
 Windows 用の ProRes 確認プレイヤー。Cinema 4D などから書き出した ProRes を、アルファやフレーム単位で確認するためのもの。
 ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、avi、webm、DNxHR の mxf など）はそのまま再生できます。
@@ -41,7 +41,7 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 
 ## ビルド
 
-必要なもの：.NET 8 SDK、7-Zip（libmpv の取得用）
+必要なもの：.NET 10 SDK、7-Zip（libmpv の取得用）
 
 ```powershell
 .\tools\get-libmpv.ps1        # lib\libmpv-2.dll を取得（git には入れていない）
@@ -50,9 +50,9 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 
 アイコン（`assets\app.ico`）は `.\tools\make-icon.ps1` で作り直せます。
 
-開発中は `dotnet build -c Release src\ProResPlayer` で `src\ProResPlayer\bin\Release\net8.0-windows\win-x64\` にできます。
+開発中は `dotnet build -c Release src\ProResPlayer` で `src\ProResPlayer\bin\Release\net10.0-windows\win-x64\` にできます。
 
-実行には .NET 8 Desktop Runtime が必要です。入っていない PC 向けには `.\tools\publish.ps1 -SelfContained`。
+実行には .NET 10 Desktop Runtime が必要です。入っていない PC 向けには `.\tools\publish.ps1 -SelfContained`。
 
 ## 仕組みのメモ
 

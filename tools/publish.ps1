@@ -1,4 +1,4 @@
-# Builds a ready-to-run folder: dist\ProResPlayer\ (needs the .NET 8 Desktop Runtime on the target PC).
+﻿# Builds a ready-to-run folder: dist\ProResPlayer\ (needs the .NET 10 Desktop Runtime on the target PC).
 #   .\tools\publish.ps1
 #   .\tools\publish.ps1 -SelfContained   # bundles the runtime (~+150 MB), runs anywhere
 param([switch]$SelfContained)

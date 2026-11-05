@@ -14,6 +14,7 @@ public sealed class CutDialog : Window
 	public CutDialog(Window owner, string fileName, string range, string? warning)
 	{
 		Owner = owner;
+		ThemeMode = ThemeMode.Dark;
 		Title = "範囲をカットして保存";
 		SizeToContent = SizeToContent.WidthAndHeight;
 		ResizeMode = ResizeMode.NoResize;
@@ -50,7 +51,11 @@ public sealed class CutDialog : Window
 			return b;
 		}
 		Button overwrite = Add("上書き保存", CutChoice.Overwrite, isDefault: true);
-		overwrite.BorderBrush = (Brush)Application.Current.Resources["Accent"];
+		// Fluent's accent button (orange), keeping the compact size of the other buttons.
+		overwrite.Style = new Style(typeof(Button), (Style)FindResource("AccentButtonStyle"))
+		{
+			Setters = { new Setter(MinHeightProperty, 30.0), new Setter(PaddingProperty, new Thickness(10, 3, 10, 3)) },
+		};
 		Add("別名で保存...", CutChoice.SaveAs);
 		Add("キャンセル", CutChoice.Cancel, isCancel: true);
 		root.Children.Add(buttons);
