@@ -571,7 +571,7 @@ public partial class MainWindow : Window
 		ShowStatus("カット中...", sticky: true);
 		try
 		{
-			string? error = await Cutter.CutAsync(source, tmp, first, count, fps);
+			string? error = await Cutter.CutAsync(source, tmp, first, count, fps, _a.Get("current-tracks/audio/codec"));
 			if (error != null)
 			{
 				TryDelete(tmp);

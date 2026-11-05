@@ -22,30 +22,40 @@ public static class Cutter
 
 	/// <summary>
 	/// Copies frames [firstFrame, firstFrame + frameCount) of <paramref name="input"/> to <paramref name="output"/>.
-	/// The seek point is a quarter frame past the first frame (the demuxer picks the last keyframe at or
-	/// before it, i.e. that frame) and the duration stops half a frame before the next one, so float rounding
-	/// never adds or drops a frame. make_zero shifts the first kept packet to t=0 instead of hiding it
-	/// behind an edit list.
+	/// <list type="bullet">
+	/// <item>The seek point is the first frame's time rounded up to the microsecond, so the demuxer lands
+	/// on that frame (the last keyframe at or before it) and float rounding never picks the previous one.</item>
+	/// <item>Video and audio are read as two inputs, each with its own input-side duration: video stops half
+	/// a frame before the next frame, audio runs the exact range. Output-side limits (-t / -frames:v) would
+	/// go through ffmpeg's sync queue, which cuts the audio at the last whole audio frame before the video
+	/// ends.</item>
+	/// <item>PCM audio is decoded and re-encoded to the same PCM format: bit-identical, but trimmed to the
+	/// sample instead of to the packet. Compressed audio (AAC...) is copied.</item>
+	/// <item>make_zero shifts the first kept packet to t=0 instead of hiding it behind an edit list.</item>
+	/// </list>
 	/// </summary>
-	public static async Task<string?> CutAsync(string input, string output, long firstFrame, long frameCount, double fps)
+	public static async Task<string?> CutAsync(string input, string output, long firstFrame, long frameCount, double fps, string? audioCodec)
 	{
 		string F(double v) => v.ToString("0.######", CultureInfo.InvariantCulture);
+		string start = F(Math.Ceiling(firstFrame / fps * 1e6) / 1e6);
 		var psi = new ProcessStartInfo(FfmpegPath)
 		{
 			UseShellExecute = false,
 			CreateNoWindow = true,
 			RedirectStandardError = true,
 		};
-		foreach (string a in new[]
+		var args = new List<string>
 		{
 			"-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-			"-ss", F((firstFrame + 0.25) / fps),
-			"-i", input,
-			"-t", F((frameCount - 0.5) / fps),
-			"-map", "0:v", "-map", "0:a?", "-map_metadata", "0",
-			"-c", "copy", "-avoid_negative_ts", "make_zero",
-			output,
-		})
+			"-ss", start, "-t", F((frameCount - 0.5) / fps), "-i", input,
+			"-ss", start, "-t", F(frameCount / fps), "-i", input,
+			"-map", "0:v", "-map", "1:a?", "-map_metadata", "0",
+			"-c", "copy",
+		};
+		if (audioCodec != null && audioCodec.StartsWith("pcm_", StringComparison.OrdinalIgnoreCase))
+			args.AddRange(new[] { "-c:a", audioCodec });
+		args.AddRange(new[] { "-avoid_negative_ts", "make_zero", output });
+		foreach (string a in args)
 			psi.ArgumentList.Add(a);
 
 		using var p = Process.Start(psi)!;
