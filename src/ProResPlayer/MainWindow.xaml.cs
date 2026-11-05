@@ -29,7 +29,7 @@ public partial class MainWindow : Window
 	private string _background = "black";
 	private string? _infoPathA, _infoPathB;
 	private string? _pathB;	// set as soon as B is requested; mpv loads asynchronously
-	private bool _seekDragging, _updatingSeekBar, _syncingUi;
+	private bool _seekDragging, _updatingSeekBar;
 	private bool _fullscreen;
 	private WindowState _prevState;
 	private WindowStyle _prevStyle;
@@ -65,6 +65,16 @@ public partial class MainWindow : Window
 			return;
 		}
 
+		// Cut panel: above the whole bottom bar (so the seek bar stays usable), centred over the cut button.
+		CutPopup.CustomPopupPlacementCallback = (popup, target, offset) =>
+		{
+			double scale = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
+			Point c = CutToggle.TranslatePoint(new Point(CutToggle.ActualWidth / 2, 0), ControlBar);
+			double x = Math.Clamp(c.X * scale - popup.Width / 2, 0, Math.Max(0, target.Width - popup.Width));
+			return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x, -popup.Height - 6 * scale),
+				System.Windows.Controls.Primitives.PopupPrimaryAxis.Horizontal) };
+		};
+
 		HostA.Clicked += (_, _) => { FocusSelf(); TogglePlay(); };
 		HostA.DoubleClicked += (_, _) => { FocusSelf(); TogglePlay(); ToggleFullscreen(); };
 		HostB.Clicked += (_, _) => { FocusSelf(); TogglePlay(); };
@@ -82,6 +92,13 @@ public partial class MainWindow : Window
 			OpenB(files[1]);
 
 		_timer.Start();
+
+		// The cut popup is a separate top-level window: keep it with the main window and out of other apps' way.
+		Activated += (_, _) => SetCutPanel(CutToggle.IsChecked == true);
+		Deactivated += (_, _) => CutPopup.IsOpen = false;
+		LocationChanged += (_, _) => RepositionCutPopup();
+		SizeChanged += (_, _) => RepositionCutPopup();
+		StateChanged += (_, _) => RepositionCutPopup();
 	}
 
 	private void OnClosed(object? sender, EventArgs e)
@@ -128,9 +145,11 @@ public partial class MainWindow : Window
 		string? prev = _playlist.Neighbor(-1), next = _playlist.Neighbor(1);
 		PrevFileButton.IsEnabled = prev != null;
 		NextFileButton.IsEnabled = next != null;
-		PrevFileButton.ToolTip = (prev != null ? Path.GetFileName(prev) + "\n" : "") + "同じフォルダの前の動画 (Ctrl+← / PageUp)";
-		NextFileButton.ToolTip = (next != null ? Path.GetFileName(next) + "\n" : "") + "同じフォルダの次の動画 (Ctrl+→ / PageDown)";
 		FilePosText.Text = _playlist.Count > 1 ? $"{_playlist.Index + 1} / {_playlist.Count}" : "";
+		// The position is hidden on narrow windows, so the tooltips carry it too.
+		string pos = _playlist.Count > 1 ? $"（今 {_playlist.Index + 1} / {_playlist.Count} 本目）" : "";
+		PrevFileButton.ToolTip = (prev != null ? Path.GetFileName(prev) + "\n" : "") + "同じフォルダの前の動画 (Ctrl+← / PageUp)" + pos;
+		NextFileButton.ToolTip = (next != null ? Path.GetFileName(next) + "\n" : "") + "同じフォルダの次の動画 (Ctrl+→ / PageDown)" + pos;
 	}
 
 	private void OpenNeighbor(int delta)
@@ -653,10 +672,6 @@ public partial class MainWindow : Window
 		}
 		ApplyBackground(_a);
 		ApplyBackground(_b);
-		_syncingUi = true;
-		foreach (ComboBoxItem item in BackgroundBox.Items)
-			item.IsSelected = (string)item.Tag == mode;
-		_syncingUi = false;
 	}
 
 	private void ApplyBackground(MpvPlayer? p)
@@ -691,12 +706,6 @@ public partial class MainWindow : Window
 			p.Set("alpha", "blend");
 	}
 
-	private void OnBackgroundBox(object sender, SelectionChangedEventArgs e)
-	{
-		if (!_syncingUi && BackgroundBox.SelectedItem is ComboBoxItem item && _a != null)
-			SetBackground((string)item.Tag);
-	}
-
 	private void OnBackgroundMenu(object sender, RoutedEventArgs e) => SetBackground((string)((FrameworkElement)sender).Tag);
 
 	// ------------------------------------------------------------------------------------------
@@ -718,10 +727,6 @@ public partial class MainWindow : Window
 		}
 
 		_compare = mode;
-		_syncingUi = true;
-		foreach (ComboBoxItem item in CompareBox.Items)
-			item.IsSelected = (string)item.Tag == mode.ToString().ToLowerInvariant();
-		_syncingUi = false;
 
 		WipeSlider.Visibility = mode == CompareMode.Wipe ? Visibility.Visible : Visibility.Collapsed;
 		RearrangeControls();
@@ -733,11 +738,26 @@ public partial class MainWindow : Window
 		LayoutVideo();
 	}
 
-	private void OnCompareBox(object sender, SelectionChangedEventArgs e)
+	// "View" drop-down in the bottom bar: background and compare in one menu, opening upwards.
+	private void OnViewButton(object sender, RoutedEventArgs e)
 	{
-		if (_syncingUi || CompareBox.SelectedItem is not ComboBoxItem item || _a == null)
-			return;
-		SetCompare(ParseCompare((string)item.Tag));
+		foreach (var item in ViewMenu.Items.OfType<MenuItem>())
+		{
+			string tag = (string)item.Tag;
+			item.IsChecked = tag == "bg:" + _background || tag == "cmp:" + _compare.ToString().ToLowerInvariant();
+		}
+		ViewMenu.PlacementTarget = ViewButton;
+		ViewMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+		ViewMenu.IsOpen = true;
+	}
+
+	private void OnViewMenuItem(object sender, RoutedEventArgs e)
+	{
+		string tag = (string)((FrameworkElement)sender).Tag;
+		if (tag.StartsWith("bg:"))
+			SetBackground(tag[3..]);
+		else
+			SetCompare(ParseCompare(tag[4..]));
 	}
 
 	private void OnCompareMenu(object sender, RoutedEventArgs e) => SetCompare(ParseCompare((string)((FrameworkElement)sender).Tag));
@@ -865,7 +885,8 @@ public partial class MainWindow : Window
 
 		double t = _a.Time, dur = _a.Duration, fps = _a.Fps;
 		bool paused = _a.Paused;
-		PlayButton.Content = paused ? "▶" : "❚❚";
+		PlayButton.Content = paused ? "\uE768" : "\uE769";	// Segoe Fluent Icons: Play / Pause
+		UpdateCutRange(dur, fps);
 
 		if (!_seekDragging)
 		{
@@ -880,7 +901,7 @@ public partial class MainWindow : Window
 		TimecodeText.Text = Timecode(frame, fps);
 		FrameText.Text = $"{frame} / {Math.Max(0, total - 1)} f   {fps:0.###} fps";
 
-		UpdateLoopRect(dur);
+		UpdateRangeMarks(dur, fps);
 
 		// Keep B within a frame of A while playing.
 		if (Comparing && !paused && fps > 0)
@@ -893,19 +914,67 @@ public partial class MainWindow : Window
 		}
 	}
 
-	private void UpdateLoopRect(double dur)
+	private void OnSeekBarSizeChanged(object sender, SizeChangedEventArgs e)
+	{
+		if (_a != null && _a.HasFile)
+			UpdateRangeMarks(_a.Duration, _a.Fps);
+	}
+
+	/// <summary>Seek-bar x (in RangeCanvas) of time t: where the thumb centre sits for that value.</summary>
+	private double SeekX(double t, double dur)
+	{
+		double frac = dur > 0 ? Math.Clamp(t / dur, 0, 1) : 0;
+		if (SeekBar.Template.FindName("PART_Track", SeekBar) is System.Windows.Controls.Primitives.Track track && track.ActualWidth > 0)
+		{
+			double thumbW = track.Thumb?.ActualWidth ?? 0;
+			double left = track.TranslatePoint(new Point(0, 0), RangeCanvas).X;
+			return left + thumbW / 2 + frac * (track.ActualWidth - thumbW);
+		}
+		return frac * RangeCanvas.ActualWidth;
+	}
+
+	private void UpdateRangeMarks(double dur, double fps)
 	{
 		double? a = _a!.GetDouble("ab-loop-a"), b = _a.GetDouble("ab-loop-b");
-		if (dur <= 0 || (!a.HasValue && !b.HasValue))
-		{
-			LoopRect.Visibility = Visibility.Collapsed;
+		bool any = dur > 0 && (a.HasValue || b.HasValue);
+		RangeBand.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+		InMark.Visibility = InLabel.Visibility = any && a.HasValue ? Visibility.Visible : Visibility.Collapsed;
+		OutMark.Visibility = OutLabel.Visibility = any && b.HasValue ? Visibility.Visible : Visibility.Collapsed;
+		if (!any)
 			return;
+
+		double mid = SeekBar.ActualHeight / 2;
+		double x0 = SeekX(a ?? 0, dur), x1 = SeekX(b ?? dur, dur);
+		Canvas.SetLeft(RangeBand, x0);
+		Canvas.SetTop(RangeBand, mid - RangeBand.Height / 2);
+		RangeBand.Width = Math.Max(3, x1 - x0);
+
+		long Frame(double t) => fps > 0 ? (long)Math.Round(t * fps) : 0;
+		double labelTop = SeekBar.ActualHeight - 1;
+		double inRight = double.NegativeInfinity;
+		if (a.HasValue)
+		{
+			Canvas.SetLeft(InMark, x0 - 1);
+			Canvas.SetTop(InMark, mid - 11);
+			InLabel.Text = "IN " + Timecode(Frame(a.Value), fps);
+			InLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+			double l = Math.Clamp(x0, 0, Math.Max(0, RangeCanvas.ActualWidth - InLabel.DesiredSize.Width));
+			Canvas.SetLeft(InLabel, l);
+			Canvas.SetTop(InLabel, labelTop);
+			inRight = l + InLabel.DesiredSize.Width;
 		}
-		double w = LoopCanvas.ActualWidth;
-		double x0 = (a ?? 0) / dur * w, x1 = (b ?? dur) / dur * w;
-		Canvas.SetLeft(LoopRect, x0);
-		LoopRect.Width = Math.Max(2, x1 - x0);
-		LoopRect.Visibility = Visibility.Visible;
+		if (b.HasValue)
+		{
+			Canvas.SetLeft(OutMark, x1 - 6.5);
+			Canvas.SetTop(OutMark, mid - 11);
+			OutLabel.Text = Timecode(Frame(b.Value), fps) + " OUT";
+			OutLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+			double w = OutLabel.DesiredSize.Width;
+			// Right-aligned to the OUT mark, but never on top of the IN label.
+			double l = Math.Clamp(Math.Max(x1 - w, inRight + 8), 0, Math.Max(0, RangeCanvas.ActualWidth - w));
+			Canvas.SetLeft(OutLabel, l);
+			Canvas.SetTop(OutLabel, labelTop);
+		}
 	}
 
 	private static string Timecode(long frame, double fps)
@@ -966,72 +1035,83 @@ public partial class MainWindow : Window
 		}
 		InfoPanel.Visibility = on && !_fullscreen ? Visibility.Visible : Visibility.Collapsed;
 		// The arrow points the way the panel will move: ▶ hides it to the right, ◀ brings it back.
-		InfoButton.Content = on ? "情報 ▶" : "◀ 情報";
+		InfoButton.IsChecked = on;
 	}
 
-	private void OnControlGridSizeChanged(object sender, SizeChangedEventArgs e)
+	private void OnControlRowSizeChanged(object sender, SizeChangedEventArgs e)
 	{
 		if (e.WidthChanged)
-			ArrangeControlRows();
+			ArrangeControls();
 	}
 
-	private bool? _oneRow;
-
 	/// <summary>
-	/// One row when everything fits (transport, files | loop / cut centred | view / export), otherwise two
-	/// rows with aligned edges: transport ... loop / cut, then files ... view / export.
+	/// Always one row. When the groups do not fit with their text labels, the labels (ループ / カット / 表示)
+	/// and the folder position (14 / 19, also in the buttons' tooltips) are hidden so only icons remain.
 	/// </summary>
-	private void ArrangeControlRows()
+	private void ArrangeControls()
 	{
+		double w = ControlRow.ActualWidth;
+		if (w <= 0)
+			return;
 		static double Need(UIElement el)
 		{
 			el.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 			return el.DesiredSize.Width;
 		}
-		double w = ControlGrid.ActualWidth;
-		if (w <= 0)
-			return;
-		FileDivider.Visibility = Visibility.Visible;	// measured with the divider; hidden again in two-row mode
-		double gap = 24;	// breathing room around the centred loop group
-		bool oneRow = Need(TransportGroup) + Need(FileGroup) + Need(LoopGroup) + Need(RightGroup) + 2 * gap <= w;
-		FileDivider.Visibility = oneRow ? Visibility.Visible : Visibility.Collapsed;
-		if (oneRow == _oneRow)
-			return;
-		_oneRow = oneRow;
+		SetLabels(true);
+		bool full = Need(TransportGroup) + Need(FileGroup) + Need(CenterGroup) + Need(RightGroup) + 32 <= w;
+		SetLabels(full);
+		RepositionCutPopup();
+	}
 
-		Row0.Children.Clear();
-		Row1.Children.Clear();
-		void Add(DockPanel row, FrameworkElement el, Dock? dock, HorizontalAlignment align)
-		{
-			if (dock is Dock d)
-				DockPanel.SetDock(el, d);
-			el.HorizontalAlignment = align;
-			row.Children.Add(el);	// the last child added fills the remaining space
-		}
-		if (oneRow)
-		{
-			Add(Row0, TransportGroup, Dock.Left, HorizontalAlignment.Left);
-			Add(Row0, FileGroup, Dock.Left, HorizontalAlignment.Left);
-			Add(Row0, RightGroup, Dock.Right, HorizontalAlignment.Right);
-			Add(Row0, LoopGroup, null, HorizontalAlignment.Center);
-			Row1.Visibility = Visibility.Collapsed;
-		}
-		else
-		{
-			Add(Row0, TransportGroup, Dock.Left, HorizontalAlignment.Left);
-			Add(Row0, LoopGroup, null, HorizontalAlignment.Right);
-			Add(Row1, FileGroup, Dock.Left, HorizontalAlignment.Left);
-			Add(Row1, RightGroup, null, HorizontalAlignment.Right);
-			Row1.Visibility = Visibility.Visible;
-		}
-		FileDivider.Visibility = oneRow ? Visibility.Visible : Visibility.Collapsed;
+	private void SetLabels(bool on)
+	{
+		var v = on ? Visibility.Visible : Visibility.Collapsed;
+		LoopLabel.Visibility = CutLabel.Visibility = ViewLabel.Visibility = FilePosText.Visibility = v;
 	}
 
 	/// <summary>Re-evaluates the layout after a group changed width (e.g. the wipe slider appeared).</summary>
-	private void RearrangeControls()
+	private void RearrangeControls() => Dispatcher.BeginInvoke(ArrangeControls, DispatcherPriority.Loaded);
+
+	// ------------------------------------------------------------------------------------------
+	// Cut panel (IN / OUT / clear / save), a popup above the cut button
+	// ------------------------------------------------------------------------------------------
+
+	private void OnCutToggle(object sender, RoutedEventArgs e) => SetCutPanel(CutToggle.IsChecked == true);
+
+	private void SetCutPanel(bool on)
 	{
-		_oneRow = null;
-		ArrangeControlRows();
+		CutToggle.IsChecked = on;
+		CutPopup.IsOpen = on && IsActive && !_fullscreen;
+	}
+
+	// A Popup does not follow its owner when the window moves or resizes; nudge it to re-place.
+	private void RepositionCutPopup()
+	{
+		if (!CutPopup.IsOpen)
+			return;
+		CutPopup.HorizontalOffset += 0.01;
+		CutPopup.HorizontalOffset -= 0.01;
+	}
+
+	private void UpdateCutRange(double dur, double fps)
+	{
+		if (!CutPopup.IsOpen || _a == null)
+			return;
+		double? a = _a.GetDouble("ab-loop-a"), b = _a.GetDouble("ab-loop-b");
+		if (fps <= 0 || dur <= 0 || (!a.HasValue && !b.HasValue))
+		{
+			CutRangeText.Text = "I / O で範囲を決めてください";
+			CutSaveButton.IsEnabled = false;
+			return;
+		}
+		long total = Math.Max(1, (long)Math.Round(dur * fps));
+		long first = a.HasValue ? Math.Clamp((long)Math.Round(a.Value * fps), 0, total - 1) : 0;
+		long last = b.HasValue ? Math.Clamp((long)Math.Round(b.Value * fps), 0, total - 1) : total - 1;
+		if (last < first)
+			(first, last) = (last, first);
+		CutRangeText.Text = $"{Timecode(first, fps)} 〜 {Timecode(last, fps)}  ({last - first + 1} f)";
+		CutSaveButton.IsEnabled = true;
 	}
 
 	private void OnToggleFullscreen(object sender, RoutedEventArgs e) => ToggleFullscreen();
@@ -1058,6 +1138,7 @@ public partial class MainWindow : Window
 			ControlBar.Visibility = Visibility.Visible;
 		}
 		SetInfoVisible(InfoItem.IsChecked);
+		SetCutPanel(CutToggle.IsChecked == true);
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -1103,6 +1184,7 @@ public partial class MainWindow : Window
 			case Key.S when ctrl: SaveFrame(); break;
 			case Key.C when ctrl: CopyFrame(); break;
 			case Key.X when ctrl: _ = CutAsync(); break;
+			case Key.X: SetCutPanel(CutToggle.IsChecked != true); break;
 			case Key.O when ctrl && shift: OnOpenB(this, e); break;
 			case Key.O when ctrl: OnOpen(this, e); break;
 			case Key.Space: TogglePlay(); break;
@@ -1154,6 +1236,7 @@ public partial class MainWindow : Window
 			"Home / End   先頭 / 末尾\n" +
 			"Ctrl+← / →   同じフォルダの前 / 次の動画（PageUp / PageDown でも可）\n" +
 			"I / O / P    ループ開始 / 終了 / クリア\n" +
+			"X            カットのパネル（IN / OUT / 保存）を出す / 閉じる\n" +
 			"Ctrl+X       IN〜OUT だけ残して保存（再エンコードなし）\n" +
 			"L            ループ再生 オン/オフ\n" +
 			"1 2 3 4 / A  背景: 市松 / 黒 / 白 / アルファのみ / 切り替え\n" +
