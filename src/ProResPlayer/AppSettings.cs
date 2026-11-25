@@ -11,6 +11,11 @@ public sealed class AppSettings
 	/// <summary>checker / black / white / alpha</summary>
 	public string Background { get; set; } = "black";
 
+	/// <summary>0-100</summary>
+	public double Volume { get; set; } = 100;
+
+	public bool Mute { get; set; }
+
 	private static string FilePath =>
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ProResPlayer", "settings.json");
 

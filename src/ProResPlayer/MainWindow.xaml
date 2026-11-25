@@ -99,6 +99,14 @@
           </StackPanel>
 
           <StackPanel x:Name="RightGroup" DockPanel.Dock="Right" Orientation="Horizontal">
+            <!-- Volume: the speaker toggles mute; the slider hides on narrow windows (Ctrl+↑ / ↓ still work). -->
+            <Button x:Name="MuteButton" AutomationProperties.Name="ミュート" FontFamily="{StaticResource IconFont}" FontSize="15"
+                    MinWidth="34" Padding="7,3" Content="&#xE767;" Click="OnMuteButton" ToolTip="ミュート オン / オフ (M)"/>
+            <Slider x:Name="VolumeSlider" AutomationProperties.Name="音量" Width="84" Minimum="0" Maximum="100" Value="100"
+                    Focusable="False" VerticalAlignment="Center" Margin="2,0,0,0" IsMoveToPointEnabled="True"
+                    SmallChange="5" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="OnVolumeChanged" PreviewMouseWheel="OnVolumeWheel"
+                    ToolTip="音量 (Ctrl+↑ / Ctrl+↓、ホイールでも変えられます)"/>
+            <Rectangle x:Name="VolumeDivider" Style="{StaticResource Divider}"/>
             <Slider x:Name="WipeSlider" Width="110" Minimum="0" Maximum="1" Value="0.5" Focusable="False" Margin="0,0,6,0"
                     VerticalAlignment="Center" Visibility="Collapsed" ValueChanged="OnWipeChanged" ToolTip="ワイプ位置 ([ / ])"/>
             <!-- Background and compare live in one drop-down menu. -->

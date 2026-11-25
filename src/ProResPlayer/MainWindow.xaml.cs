@@ -83,6 +83,8 @@ public partial class MainWindow : Window
 		SetBackground(_settings.Background is "checker" or "black" or "white" or "alpha" ? _settings.Background : "black");
 		SetLoopFile(LoopCheck.IsChecked == true);	// loop is on by default
 		SetInfoVisible(_settings.InfoPanel);	// restore last open / closed state
+		SetVolume(_settings.Volume);
+		SetMute(_settings.Mute);
 		UpdateAssociationMenu();
 
 		string[] files = App.StartupFiles.Where(File.Exists).ToArray();
@@ -1038,6 +1040,61 @@ public partial class MainWindow : Window
 		InfoButton.IsChecked = on;
 	}
 
+	// ------------------------------------------------------------------------------------------
+	// Volume (A only; B is always muted)
+	// ------------------------------------------------------------------------------------------
+
+	private bool _muted;
+
+	private void SetVolume(double v)
+	{
+		v = Math.Clamp(Math.Round(v), 0, 100);
+		if (VolumeSlider.Value != v)
+			VolumeSlider.Value = v;	// OnVolumeChanged applies and saves it
+		else
+			ApplyVolume();
+	}
+
+	private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+	{
+		if (!IsLoaded)
+			return;
+		if (_muted && e.NewValue > 0)
+			SetMute(false);	// moving the slider up unmutes, like the Windows volume flyout
+		ApplyVolume();
+	}
+
+	private void OnVolumeWheel(object sender, MouseWheelEventArgs e)
+	{
+		SetVolume(VolumeSlider.Value + (e.Delta > 0 ? 5 : -5));
+		e.Handled = true;
+	}
+
+	private void OnMuteButton(object sender, RoutedEventArgs e) => SetMute(!_muted);
+
+	private void SetMute(bool on)
+	{
+		_muted = on;
+		ApplyVolume();
+	}
+
+	private void ApplyVolume()
+	{
+		double v = VolumeSlider.Value;
+		_a?.Set("volume", v);
+		_a?.Set("mute", _muted ? "yes" : "no");
+		// Segoe Fluent Icons: Mute / Volume0..3
+		MuteButton.Content = _muted || v == 0 ? "\uE74F" : v < 34 ? "\uE993" : v < 67 ? "\uE994" : "\uE995";
+		MuteButton.ToolTip = (_muted ? "ミュート中" : $"音量 {v:0}%") + "\nクリックでミュート オン / オフ (M)";
+		VolumeSlider.ToolTip = $"音量 {v:0}% (Ctrl+↑ / Ctrl+↓、ホイールでも変えられます)";
+		if (_settings.Volume != v || _settings.Mute != _muted)
+		{
+			_settings.Volume = v;
+			_settings.Mute = _muted;
+			_settings.Save();
+		}
+	}
+
 	private void OnControlRowSizeChanged(object sender, SizeChangedEventArgs e)
 	{
 		if (e.WidthChanged)
@@ -1059,6 +1116,11 @@ public partial class MainWindow : Window
 			return el.DesiredSize.Width;
 		}
 		SetLabels(true);
+		// Labels that were collapsed keep their old (zero) size in the cached measure of their parents;
+		// invalidate the whole chain so the measurement below really includes them.
+		foreach (UIElement label in new UIElement[] { LoopLabel, CutLabel, ViewLabel, FilePosText, VolumeSlider })
+			for (DependencyObject? d = label; d != null && d != ControlRow; d = VisualTreeHelper.GetParent(d))
+				(d as UIElement)?.InvalidateMeasure();
 		bool full = Need(TransportGroup) + Need(FileGroup) + Need(CenterGroup) + Need(RightGroup) + 32 <= w;
 		SetLabels(full);
 		RepositionCutPopup();
@@ -1067,7 +1129,7 @@ public partial class MainWindow : Window
 	private void SetLabels(bool on)
 	{
 		var v = on ? Visibility.Visible : Visibility.Collapsed;
-		LoopLabel.Visibility = CutLabel.Visibility = ViewLabel.Visibility = FilePosText.Visibility = v;
+		LoopLabel.Visibility = CutLabel.Visibility = ViewLabel.Visibility = FilePosText.Visibility = VolumeSlider.Visibility = v;
 	}
 
 	/// <summary>Re-evaluates the layout after a group changed width (e.g. the wipe slider appeared).</summary>
@@ -1196,6 +1258,9 @@ public partial class MainWindow : Window
 			case Key.Right when shift: SeekBy(1); break;
 			case Key.Left: Step(-1); break;
 			case Key.Right: Step(1); break;
+			case Key.Up when ctrl: SetVolume(VolumeSlider.Value + 5); break;
+			case Key.Down when ctrl: SetVolume(VolumeSlider.Value - 5); break;
+			case Key.M: SetMute(!_muted); break;
 			case Key.Up: SeekBy(10); break;
 			case Key.Down: SeekBy(-10); break;
 			case Key.Home: Pause(); SeekTo(0); break;
@@ -1236,6 +1301,8 @@ public partial class MainWindow : Window
 			"Home / End   先頭 / 末尾\n" +
 			"Ctrl+← / →   同じフォルダの前 / 次の動画（PageUp / PageDown でも可）\n" +
 			"I / O / P    ループ開始 / 終了 / クリア\n" +
+			"M            ミュート オン / オフ\n" +
+			"Ctrl+↑ / ↓   音量を上げる / 下げる\n" +
 			"X            カットのパネル（IN / OUT / 保存）を出す / 閉じる\n" +
 			"Ctrl+X       IN〜OUT だけ残して保存（再エンコードなし）\n" +
 			"L            ループ再生 オン/オフ\n" +
