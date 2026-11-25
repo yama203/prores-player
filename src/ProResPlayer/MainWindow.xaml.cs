@@ -444,41 +444,64 @@ public partial class MainWindow : Window
 
 	private void OnCopyFrame(object sender, RoutedEventArgs e) => CopyFrame();
 
-	/// <summary>
-	/// Puts the frame on the clipboard as "PNG" (keeps alpha; Photoshop, Office, browsers) and as a
-	/// regular bitmap for everything else.
-	/// </summary>
-	private void CopyFrame()
+	/// <summary>The current frame of A at source resolution as Bgra32 (keeps alpha), or null.</summary>
+	private BitmapSource? GrabFrame()
 	{
 		if (_a == null || !_a.HasFile)
-			return;
+			return null;
 		Pause();
-		string tmp = Path.Combine(Path.GetTempPath(), "ProResPlayer_clipboard.png");
+		string tmp = Path.Combine(Path.GetTempPath(), "ProResPlayer_frame.png");
 		if (File.Exists(tmp))
 			File.Delete(tmp);
 		// mpv's 8-bit screenshots drop alpha, so grab 16-bit RGBA and reduce to 8-bit BGRA here.
 		if (!_a.Screenshot(tmp, highBitDepth: true))
-		{
-			ShowStatus("コピーに失敗しました");
-			return;
-		}
+			return null;
 		BitmapSource src;
 		using (var fs = File.OpenRead(tmp))
 			src = new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
 		var bgra = new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
 		bgra.Freeze();
+		return bgra;
+	}
 
-		var png = new MemoryStream();
-		var enc = new PngBitmapEncoder();
-		enc.Frames.Add(BitmapFrame.Create(bgra));
-		enc.Save(png);
-		png.Position = 0;
-
-		var data = new DataObject();
-		data.SetData("PNG", png);
-		data.SetImage(bgra);
-		Clipboard.SetDataObject(data, true);
+	/// <summary>Copies the frame as PNG (keeps alpha) and as a regular bitmap.</summary>
+	private void CopyFrame()
+	{
+		if (_a == null || !_a.HasFile)
+			return;
+		if (GrabFrame() is not BitmapSource frame)
+		{
+			ShowStatus("コピーに失敗しました");
+			return;
+		}
+		ClipboardImage.Set(frame);
 		ShowStatus($"コピーしました (フレーム {CurrentFrame})");
+	}
+
+	private void OnMarkup(object sender, RoutedEventArgs e) => OpenMarkup();
+
+	/// <summary>Opens the current frame in the markup window (draw, then copy / save).</summary>
+	private void OpenMarkup()
+	{
+		if (_a?.Path is not string video || !_a.HasFile)
+			return;
+		if (GrabFrame() is not BitmapSource frame)
+		{
+			ShowStatus("フレームを取り込めませんでした");
+			return;
+		}
+		double fps = _a.Fps, t = _a.Time;
+		long frameNo = CurrentFrame, last = fps > 0 ? Math.Max(0, (long)Math.Round(_a.Duration * fps) - 1) : 0;
+		string info = string.Join("   ", new[]
+		{
+			Path.GetFileName(video),
+			fps > 0 ? $"フレーム {frameNo} / {last}" : null,
+			fps > 0 ? Timecode(frameNo, fps) : null,
+			$"{t:0.000} 秒",
+			$"{frame.PixelWidth}×{frame.PixelHeight}",
+			fps > 0 ? $"{fps:0.###} fps" : null,
+		}.Where(s => s != null));
+		new MarkupWindow(this, frame, _background, info, $"{Path.GetFileNameWithoutExtension(video)}_f{frameNo:00000}").Show();
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -1245,6 +1268,7 @@ public partial class MainWindow : Window
 		{
 			case Key.S when ctrl: SaveFrame(); break;
 			case Key.C when ctrl: CopyFrame(); break;
+			case Key.E when ctrl: OpenMarkup(); break;
 			case Key.X when ctrl: _ = CutAsync(); break;
 			case Key.X: SetCutPanel(CutToggle.IsChecked != true); break;
 			case Key.O when ctrl && shift: OnOpenB(this, e); break;
@@ -1314,7 +1338,8 @@ public partial class MainWindow : Window
 			"Ctrl+O       開く\n" +
 			"Ctrl+Shift+O 比較用 (B) を開く\n" +
 			"Ctrl+S       フレームを PNG で保存\n" +
-			"Ctrl+C       フレームをコピー\n\n" +
+			"Ctrl+C       フレームをコピー\n" +
+			"Ctrl+E       フレームにマークアップ（線・矢印・丸・文字を描いてコピー）\n\n" +
 			"動画の上でクリック: 再生/一時停止、ダブルクリック: 全画面\n" +
 			"ファイルを2つ同時にドロップすると A と B に読み込みます。",
 			"ショートカット");

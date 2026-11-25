@@ -16,6 +16,7 @@
         <Separator/>
         <MenuItem Header="フレームを PNG で保存..." InputGestureText="Ctrl+S" Click="OnSaveFrame"/>
         <MenuItem Header="フレームをコピー" InputGestureText="Ctrl+C" Click="OnCopyFrame"/>
+        <MenuItem Header="フレームにマークアップ..." InputGestureText="Ctrl+E" Click="OnMarkup"/>
         <Separator/>
         <MenuItem Header="IN〜OUT をカットして保存..." InputGestureText="Ctrl+X" Click="OnCut"/>
         <Separator/>
@@ -132,6 +133,8 @@
             <Rectangle Style="{StaticResource Divider}"/>
             <Button FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="34" Padding="7,3" Content="&#xE722;" AutomationProperties.Name="PNG で保存" ToolTip="今のフレームを PNG で保存 (Ctrl+S)" Click="OnSaveFrame"/>
             <Button FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="34" Padding="7,3" Content="&#xE8C8;" AutomationProperties.Name="コピー" ToolTip="今のフレームをクリップボードにコピー (Ctrl+C)" Click="OnCopyFrame"/>
+            <Button FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="34" Padding="7,3" Content="&#xEE56;" AutomationProperties.Name="マークアップ"
+                    ToolTip="今のフレームに線・矢印・丸・文字を書き込んでコピー / 保存 (Ctrl+E)" Click="OnMarkup"/>
             <ToggleButton x:Name="InfoButton" AutomationProperties.Name="情報パネル" MinWidth="34" Padding="8,3" ToolTip="情報パネルを出す / 閉じる (Tab)" Click="OnInfoButton">
               <TextBlock Style="{StaticResource Glyph}" Text="&#xE946;"/>
             </ToggleButton>

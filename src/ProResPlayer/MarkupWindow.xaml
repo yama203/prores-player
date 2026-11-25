@@ -1,0 +1,77 @@
+<Window x:Class="ProResPlayer.MarkupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="マークアップ" ThemeMode="Dark" Width="1200" Height="800" MinWidth="760" MinHeight="420"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner" PreviewKeyDown="OnKeyDown">
+  <DockPanel>
+    <!-- Tools | colours | width | undo, clear | info | copy, save -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" Padding="10,8">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button x:Name="SaveButton" FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="36" Padding="8,3" Content="&#xE74E;"
+                  AutomationProperties.Name="PNG で保存" ToolTip="PNG で保存 (Ctrl+S)" Click="OnSave"/>
+          <Button x:Name="CopyButton" AutomationProperties.Name="コピー" ToolTip="マークアップ込みの画像をクリップボードにコピー (Ctrl+C)" Click="OnCopy">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Style="{StaticResource Glyph}" Text="&#xE8C8;"/>
+              <TextBlock Text="コピー" Margin="6,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal">
+          <ToggleButton x:Name="PenTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xE70F;" Tag="Pen" Click="OnTool"
+                        AutomationProperties.Name="ペン" ToolTip="ペン（手描き） (P)"/>
+          <ToggleButton x:Name="ArrowTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xE72A;" Tag="Arrow" Click="OnTool"
+                        AutomationProperties.Name="矢印" ToolTip="矢印 (A)、Shift で水平・垂直・45°"/>
+          <ToggleButton x:Name="LineTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xE738;" Tag="Line" Click="OnTool"
+                        AutomationProperties.Name="直線" ToolTip="直線 (L)、Shift で水平・垂直・45°"/>
+          <ToggleButton x:Name="RectTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xE739;" Tag="Rect" Click="OnTool"
+                        AutomationProperties.Name="四角" ToolTip="四角 (R)、Shift で正方形"/>
+          <ToggleButton x:Name="EllipseTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xEA3A;" Tag="Ellipse" Click="OnTool"
+                        AutomationProperties.Name="丸" ToolTip="丸 (O)、Shift で正円"/>
+          <ToggleButton x:Name="TextTool" MinWidth="36" Padding="8,3" FontFamily="{StaticResource IconFont}" FontSize="15" Content="&#xE8D2;" Tag="Text" Click="OnTool"
+                        AutomationProperties.Name="文字" ToolTip="文字 (T)：クリックして入力、Enter で確定（Shift+Enter で改行）"/>
+
+          <Rectangle Style="{StaticResource Divider}"/>
+          <StackPanel x:Name="ColorPanel" Orientation="Horizontal"/>
+
+          <Rectangle Style="{StaticResource Divider}"/>
+          <ComboBox x:Name="WidthBox" Width="86" SelectedIndex="1" AutomationProperties.Name="太さ" ToolTip="線の太さ・文字の大きさ">
+            <ComboBoxItem Content="細い"/>
+            <ComboBoxItem Content="普通"/>
+            <ComboBoxItem Content="太い"/>
+          </ComboBox>
+
+          <Rectangle Style="{StaticResource Divider}"/>
+          <Button FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="36" Padding="8,3" Content="&#xE7A7;"
+                  AutomationProperties.Name="元に戻す" ToolTip="元に戻す (Ctrl+Z)" Click="OnUndo"/>
+          <Button FontFamily="{StaticResource IconFont}" FontSize="15" MinWidth="36" Padding="8,3" Content="&#xE74D;"
+                  AutomationProperties.Name="全部消す" ToolTip="書き込みを全部消す" Click="OnClear"/>
+
+          <Rectangle Style="{StaticResource Divider}"/>
+          <CheckBox x:Name="InfoCheck" Content="情報を入れる" IsChecked="True" VerticalAlignment="Center"
+                    ToolTip="画像の下にファイル名・フレーム・タイムコード・秒数・解像度を入れる" Click="OnInfoCheck"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <TextBlock DockPanel.Dock="Bottom" x:Name="HintText" Foreground="{StaticResource Dim}" Margin="12,0,12,8" FontSize="12"
+               Text="ドラッグで描き込み、Ctrl+C でコピーして AI のチャットなどに貼り付けられます。Esc で閉じます。"/>
+
+    <!-- The sheet (frame + drawings + info strip) is laid out in image pixels and scaled to fit. -->
+    <Viewbox x:Name="View" Stretch="Uniform" StretchDirection="Both" Margin="12">
+      <StackPanel x:Name="Sheet">
+        <Grid x:Name="Stage" ClipToBounds="True">
+          <Rectangle x:Name="Backdrop"/>
+          <Image x:Name="FrameImage" Stretch="Fill"/>
+          <Canvas x:Name="Ink" Background="Transparent" Cursor="Cross"
+                  MouseLeftButtonDown="OnInkDown" MouseMove="OnInkMove" MouseLeftButtonUp="OnInkUp"/>
+        </Grid>
+        <Border x:Name="InfoStrip" Background="#141414">
+          <TextBlock x:Name="InfoText" Foreground="#EDEDED" FontFamily="Consolas" TextWrapping="Wrap"/>
+        </Border>
+      </StackPanel>
+    </Viewbox>
+  </DockPanel>
+</Window>
