@@ -17,7 +17,7 @@ public static class Cutter
 
 	/// <summary>Codecs where every frame is a keyframe, so a stream copy cuts on the exact frame.</summary>
 	public static bool IsIntraOnly(string? codec) =>
-		codec != null && new[] { "prores", "dnxhd", "dnxhr", "mjpeg", "png", "qtrle", "rawvideo", "v210", "cineform", "cfhd", "ffv1", "utvideo", "hap" }
+		codec != null && new[] { "prores", "dxv", "dnxhd", "dnxhr", "mjpeg", "png", "qtrle", "rawvideo", "v210", "cineform", "cfhd", "ffv1", "utvideo", "hap" }
 			.Any(c => codec.Contains(c, StringComparison.OrdinalIgnoreCase));
 
 	/// <summary>
