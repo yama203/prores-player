@@ -31,6 +31,7 @@ public partial class MainWindow : Window
 	private bool _resumeAfterScrub;
 	private bool _muted;
 	private bool _initialized;
+	private string? _lastSaveDir;
 
 	// macOS menu bar items whose check marks follow the state.
 	private readonly NativeMenuItem MenuChecker = new("背景: 市松模様") { ToggleType = MenuItemToggleType.Radio };
@@ -400,6 +401,108 @@ public partial class MainWindow : Window
 	private void OnGoEnd(object? sender, RoutedEventArgs e) => GoEnd();
 	private void OnPrevFile(object? sender, RoutedEventArgs e) => OpenNeighbor(-1);
 	private void OnNextFile(object? sender, RoutedEventArgs e) => OpenNeighbor(1);
+
+	// ------------------------------------------------------------------------------------------
+	// Frame export: PNG, clipboard, markup (always A)
+	// ------------------------------------------------------------------------------------------
+
+	private void OnSaveFrame(object? sender, RoutedEventArgs e) => _ = SaveFrame();
+	private void OnCopyFrame(object? sender, RoutedEventArgs e) => CopyFrame();
+	private void OnMarkup(object? sender, RoutedEventArgs e) => OpenMarkup();
+
+	private string FrameBaseName(string video) => $"{Path.GetFileNameWithoutExtension(video)}_f{CurrentFrame:00000}";
+
+	/// <summary>Saves the current frame at source resolution, 16-bit RGBA (keeps alpha).</summary>
+	private async Task SaveFrame()
+	{
+		if (_a.Path is not string video || !_a.HasFile)
+			return;
+		SetPaused(true);
+		string dir = _lastSaveDir ?? Path.GetDirectoryName(video) ?? "";
+		var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+		{
+			Title = "フレームを PNG で保存",
+			SuggestedFileName = FrameBaseName(video) + ".png",
+			SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(dir),
+			DefaultExtension = "png",
+			FileTypeChoices = new[] { FilePickerFileTypes.ImagePng },
+		});
+		if (file?.TryGetLocalPath() is not string path)
+			return;
+		ShowStatus(SaveFrameTo(path) ? "保存しました: " + Path.GetFileName(path) : "保存に失敗しました");
+	}
+
+	internal bool SaveFrameTo(string path)
+	{
+		_lastSaveDir = Path.GetDirectoryName(path);
+		if (File.Exists(path))
+			File.Delete(path);	// mpv does not overwrite
+		return _a.Screenshot(path);
+	}
+
+	/// <summary>The current frame of A at source resolution (keeps alpha), or null.</summary>
+	private Avalonia.Media.Imaging.Bitmap? GrabFrame()
+	{
+		if (!_a.HasFile)
+			return null;
+		SetPaused(true);
+		string tmp = Path.Combine(Path.GetTempPath(), "ProResPlayer_frame.png");
+		if (File.Exists(tmp))
+			File.Delete(tmp);
+		// mpv's 8-bit screenshots drop alpha, so grab 16-bit RGBA; the bitmap is 8-bit with alpha.
+		if (!_a.Screenshot(tmp, highBitDepth: true))
+			return null;
+		using var fs = File.OpenRead(tmp);
+		return new Avalonia.Media.Imaging.Bitmap(fs);
+	}
+
+	/// <summary>Copies the frame as PNG (keeps alpha) and TIFF.</summary>
+	internal void CopyFrame()
+	{
+		if (!_a.HasFile)
+			return;
+		using var frame = GrabFrame();
+		if (frame == null)
+		{
+			ShowStatus("コピーに失敗しました");
+			return;
+		}
+		using var ms = new MemoryStream();
+#pragma warning disable CS0618
+		frame.Save(ms);
+#pragma warning restore CS0618
+		ShowStatus(ClipboardImage.SetPng(ms.ToArray()) ? $"コピーしました (フレーム {CurrentFrame})" : "コピーに失敗しました");
+	}
+
+	/// <summary>Opens the current frame in the markup window (draw, then copy / save).</summary>
+	internal MarkupWindow? OpenMarkup()
+	{
+		if (_a.Path is not string video || !_a.HasFile)
+			return null;
+		if (GrabFrame() is not { } frame)
+		{
+			ShowStatus("フレームを取り込めませんでした");
+			return null;
+		}
+		double fps = _a.Fps, t = _a.Time;
+		long frameNo = CurrentFrame, last = fps > 0 ? Math.Max(0, (long)Math.Round(_a.Duration * fps) - 1) : 0;
+		string info = string.Join("   ", new[]
+		{
+			Path.GetFileName(video),
+			fps > 0 ? $"フレーム {frameNo} / {last}" : null,
+			fps > 0 ? Timecode(frameNo, fps) : null,
+			$"{t:0.000} 秒",
+			$"{frame.PixelSize.Width}×{frame.PixelSize.Height}",
+			fps > 0 ? $"{fps:0.###} fps" : null,
+		}.Where(s => s != null));
+		var w = new MarkupWindow(frame, _background, info, FrameBaseName(video), _lastSaveDir ?? Path.GetDirectoryName(video))
+		{
+			Width = Math.Max(760, Bounds.Width * 0.85),
+			Height = Math.Max(420, Bounds.Height * 0.85),
+		};
+		w.Show(this);
+		return w;
+	}
 
 	// ------------------------------------------------------------------------------------------
 	// Loop (mpv A-B loop)
@@ -953,7 +1056,11 @@ public partial class MainWindow : Window
 		bar.Items.Add(Sub("ファイル",
 			Item("開く...", () => _ = OpenDialog(), "Cmd+O"),
 			new NativeMenuItemSeparator(),
-			Item("IN〜OUT をカットして保存...", () => _ = CutAsync()),
+			Item("フレームを PNG で保存...  ⌘S", () => _ = SaveFrame()),
+			Item("フレームをコピー  ⌘C", CopyFrame),
+			Item("フレームにマークアップ...  ⌘E", () => OpenMarkup()),
+			new NativeMenuItemSeparator(),
+			Item("IN〜OUT をカットして保存...  ⌘X", () => _ = CutAsync()),
 			new NativeMenuItemSeparator(),
 			Item("同じフォルダの前の動画", () => OpenNeighbor(-1)),
 			Item("同じフォルダの次の動画", () => OpenNeighbor(1))));
@@ -987,6 +1094,9 @@ public partial class MainWindow : Window
 		switch (e.Key)
 		{
 			case Key.X when cmd: _ = CutAsync(); break;
+			case Key.S when cmd: _ = SaveFrame(); break;
+			case Key.C when cmd: CopyFrame(); break;
+			case Key.E when cmd: OpenMarkup(); break;
 			case Key.X: SetCutPanel(CutButton.IsChecked != true); break;
 			case Key.Space: TogglePlay(); break;
 			case Key.Left when cmd: OpenNeighbor(-1); break;
@@ -1045,6 +1155,9 @@ public partial class MainWindow : Window
 			"Tab          情報パネル\n" +
 			"F / ⌘⌃F      全画面 (Esc で戻る)\n" +
 			"⌘O           開く\n" +
+			"⌘S           フレームを PNG で保存（元の解像度、アルファ付き）\n" +
+			"⌘C           フレームをコピー\n" +
+			"⌘E           フレームにマークアップ（線・矢印・丸・文字を描いてコピー）\n" +
 			"⌘⇧O          比較用 (B) を開く\n\n" +
 			"動画の上でクリック: 再生 / 一時停止、ダブルクリック: 全画面\n" +
 			"ファイルを2つ同時にドロップすると A と B に読み込みます。";

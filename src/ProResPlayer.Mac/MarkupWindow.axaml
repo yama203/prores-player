@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ProResPlayer"
+        x:Class="ProResPlayer.MarkupWindow"
+        Title="マークアップ" Width="1200" Height="800" MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}">
+  <DockPanel>
+    <!-- Tools | colours | width | undo, clear | info | copy, save -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" Padding="10,8">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+          <Button Classes="icon" ToolTip.Tip="PNG で保存 (⌘S)" Click="OnSave"><PathIcon Data="{StaticResource IconSave}"/></Button>
+          <Button Classes="accent" Focusable="False" ToolTip.Tip="マークアップ込みの画像をクリップボードにコピー (⌘C)" Click="OnCopy">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconCopy}"/>
+              <TextBlock Text="コピー" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal">
+          <ToggleButton x:Name="PenTool" Classes="icon" Tag="Pen" Click="OnTool" ToolTip.Tip="ペン（手描き） (P)"><PathIcon Data="{StaticResource IconPen}"/></ToggleButton>
+          <ToggleButton x:Name="ArrowTool" Classes="icon" Tag="Arrow" Click="OnTool" ToolTip.Tip="矢印 (A)、⇧ で水平・垂直・45°"><PathIcon Data="{StaticResource IconArrow}"/></ToggleButton>
+          <ToggleButton x:Name="LineTool" Classes="icon" Tag="Line" Click="OnTool" ToolTip.Tip="直線 (L)、⇧ で水平・垂直・45°"><PathIcon Data="{StaticResource IconLine}"/></ToggleButton>
+          <ToggleButton x:Name="RectTool" Classes="icon" Tag="Rect" Click="OnTool" ToolTip.Tip="四角 (R)、⇧ で正方形"><PathIcon Data="{StaticResource IconRect}"/></ToggleButton>
+          <ToggleButton x:Name="EllipseTool" Classes="icon" Tag="Ellipse" Click="OnTool" ToolTip.Tip="丸 (O)、⇧ で正円"><PathIcon Data="{StaticResource IconEllipse}"/></ToggleButton>
+          <ToggleButton x:Name="TextTool" Classes="icon" Tag="Text" Click="OnTool" ToolTip.Tip="文字 (T)：クリックして入力、Return で確定（⇧Return で改行）"><PathIcon Data="{StaticResource IconText}"/></ToggleButton>
+
+          <Rectangle Classes="divider"/>
+          <StackPanel x:Name="ColorPanel" Orientation="Horizontal"/>
+
+          <Rectangle Classes="divider"/>
+          <ComboBox x:Name="WidthBox" Width="90" SelectedIndex="1" Focusable="False" VerticalAlignment="Center" ToolTip.Tip="線の太さ・文字の大きさ">
+            <ComboBoxItem Content="細い"/>
+            <ComboBoxItem Content="普通"/>
+            <ComboBoxItem Content="太い"/>
+          </ComboBox>
+
+          <Rectangle Classes="divider"/>
+          <Button Classes="icon" ToolTip.Tip="元に戻す (⌘Z)" Click="OnUndo"><PathIcon Data="{StaticResource IconUndo}"/></Button>
+          <Button Classes="icon" ToolTip.Tip="書き込みを全部消す" Click="OnClear"><PathIcon Data="{StaticResource IconTrash}"/></Button>
+
+          <Rectangle Classes="divider"/>
+          <CheckBox x:Name="InfoCheck" Content="情報を入れる" IsChecked="True" Focusable="False" VerticalAlignment="Center"
+                    ToolTip.Tip="画像の下にファイル名・フレーム・タイムコード・秒数・解像度を入れる" Click="OnInfoCheck"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <TextBlock DockPanel.Dock="Bottom" x:Name="HintText" Foreground="{StaticResource Dim}" Margin="12,0,12,8" FontSize="12"
+               Text="ドラッグで描き込み、⌘C でコピーして AI のチャットなどに貼り付けられます。Esc で閉じます。"/>
+
+    <!-- The sheet (frame + drawings + info strip) is laid out in image pixels and scaled to fit. -->
+    <Viewbox Stretch="Uniform" StretchDirection="Both" Margin="12">
+      <StackPanel x:Name="Sheet">
+        <Panel x:Name="Stage" ClipToBounds="True">
+          <local:CheckerBoard x:Name="Checker" IsVisible="False"/>
+          <Border x:Name="Backdrop"/>
+          <Image x:Name="FrameImage" Stretch="Fill"/>
+          <Canvas x:Name="Ink" Background="Transparent" Cursor="Cross"/>
+        </Panel>
+        <Border x:Name="InfoStrip" Background="#141414">
+          <TextBlock x:Name="InfoText" Foreground="#EDEDED" FontFamily="Menlo" TextWrapping="Wrap"/>
+        </Border>
+      </StackPanel>
+    </Viewbox>
+  </DockPanel>
+</Window>

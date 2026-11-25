@@ -65,6 +65,9 @@
               </Button.Flyout>
             </Button>
             <Rectangle Classes="divider"/>
+            <Button Classes="icon" ToolTip.Tip="今のフレームを PNG で保存 (⌘S)" Click="OnSaveFrame"><PathIcon Data="{StaticResource IconCamera}"/></Button>
+            <Button Classes="icon" ToolTip.Tip="今のフレームをクリップボードにコピー (⌘C)" Click="OnCopyFrame"><PathIcon Data="{StaticResource IconCopy}"/></Button>
+            <Button Classes="icon" ToolTip.Tip="今のフレームに線・矢印・丸・文字を書き込んでコピー / 保存 (⌘E)" Click="OnMarkup"><PathIcon Data="{StaticResource IconPen}"/></Button>
             <ToggleButton x:Name="InfoButton" Classes="icon" Click="OnInfoButton" ToolTip.Tip="情報パネルを出す / 閉じる (Tab)">
               <PathIcon Data="{StaticResource IconInfo}"/>
             </ToggleButton>

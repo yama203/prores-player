@@ -80,6 +80,27 @@ internal static class SelfTest
 				}
 			}
 
+			// --- frame export at frame 30 of the alpha clip ---
+			await Load(w, args[1]);
+			w.SetBackground("checker");
+			p.SeekAbsolute(MainWindow.FrameTime(30, p.Fps)); await Task.Delay(600);
+			Log($"[png] saved={w.SaveFrameTo(Path.Combine(outDir, "frame_save.png"))}");
+			w.CopyFrame();
+			byte[]? clipPng = ClipboardImage.GetData("public.png");
+			if (clipPng != null) File.WriteAllBytes(Path.Combine(outDir, "frame_clip.png"), clipPng);
+			Log($"[copy] png={clipPng?.Length ?? 0} bytes tiff={ClipboardImage.DataLength("public.tiff")} bytes");
+			var mk = w.OpenMarkup();
+			await Task.Delay(1200);
+			if (mk != null)
+			{
+				mk.DrawArrowForTest(new Avalonia.Point(300, 200), new Avalonia.Point(1300, 520));
+				await Task.Delay(500);
+				File.WriteAllBytes(Path.Combine(outDir, "markup.png"), mk.RenderPng());
+				Shot(mk, outDir, "markup_window", Log);
+				mk.Close();
+				Log("[markup] markup.png");
+			}
+
 			// --- compare: args with "422_pcm" as B over the alpha clip as A ---
 			string? bClip = args.Skip(2).FirstOrDefault(a => a.Contains("pcm"));
 			if (bClip != null)
@@ -166,7 +187,7 @@ internal static class SelfTest
 	private static extern long MsgSendLong(IntPtr obj, IntPtr sel);
 
 	/// <summary>Real screenshot of the window (needs Screen Recording permission for the parent app).</summary>
-	private static void Shot(MainWindow w, string outDir, string name, Action<string> log)
+	private static void Shot(Avalonia.Controls.Window w, string outDir, string name, Action<string> log)
 	{
 		var h = w.TryGetPlatformHandle();
 		if (h == null) { log($"[shot] {name}: no handle ({h?.HandleDescriptor})"); return; }
