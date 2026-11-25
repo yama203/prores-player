@@ -42,7 +42,9 @@
                     VerticalAlignment="Center" Margin="2,-6,0,-6" SmallChange="5" LargeChange="10"
                     IsSnapToTickEnabled="True" TickFrequency="1"/>
             <Rectangle Classes="divider"/>
-            <Button x:Name="ViewButton" Classes="icon" ToolTip.Tip="背景（アルファの確認）の切り替え">
+            <Slider x:Name="WipeSlider" Width="110" Minimum="0" Maximum="1" Value="0.5" Focusable="False" IsVisible="False"
+                    VerticalAlignment="Center" Margin="0,-6,6,-6" ToolTip.Tip="ワイプ位置 ([ / ])"/>
+            <Button x:Name="ViewButton" Classes="icon" ToolTip.Tip="背景（アルファの確認）と比較の切り替え">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="{StaticResource IconView}"/>
                 <TextBlock Text="表示" VerticalAlignment="Center"/>
@@ -50,10 +52,15 @@
               </StackPanel>
               <Button.Flyout>
                 <MenuFlyout Placement="TopEdgeAlignedRight">
-                  <MenuItem Header="背景: 市松模様" InputGesture="1" Tag="checker" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
-                  <MenuItem Header="背景: 黒" InputGesture="2" Tag="black" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
-                  <MenuItem Header="背景: 白" InputGesture="3" Tag="white" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
-                  <MenuItem Header="アルファのみ" InputGesture="4" Tag="alpha" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="背景: 市松模様" InputGesture="1" Tag="bg:checker" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="背景: 黒" InputGesture="2" Tag="bg:black" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="背景: 白" InputGesture="3" Tag="bg:white" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="アルファのみ" InputGesture="4" Tag="bg:alpha" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <Separator/>
+                  <MenuItem Header="比較: オフ" Tag="cmp:off" ToggleType="Radio" GroupName="cmp" Click="OnViewMenuItem"/>
+                  <MenuItem Header="比較: 左右に並べる" Tag="cmp:side" ToggleType="Radio" GroupName="cmp" Click="OnViewMenuItem"/>
+                  <MenuItem Header="比較: ワイプ" Tag="cmp:wipe" ToggleType="Radio" GroupName="cmp" Click="OnViewMenuItem"/>
+                  <MenuItem Header="比較用に開く (B)..." InputGesture="Cmd+Shift+O" Tag="openb" Click="OnViewMenuItem"/>
                 </MenuFlyout>
               </Button.Flyout>
             </Button>
@@ -94,6 +101,10 @@
                      Text="ファイルをドロップするか ⌘O で開きます"/>
           <!-- label | value rows, filled in code -->
           <Grid x:Name="InfoGrid" ColumnDefinitions="Auto,*" Margin="0,4,0,16"/>
+          <StackPanel x:Name="InfoBPanel" IsVisible="False">
+            <TextBlock Text="B" FontWeight="Bold" Foreground="#6BB3F0"/>
+            <Grid x:Name="InfoGridB" ColumnDefinitions="Auto,*" Margin="0,4,0,0"/>
+          </StackPanel>
         </StackPanel>
       </ScrollViewer>
     </Border>
@@ -101,6 +112,18 @@
     <!-- Video area. The video is an ordinary control here, so things can be drawn on top of it. -->
     <Panel x:Name="VideoArea" Background="Black" ClipToBounds="True">
       <local:MpvView x:Name="Video" Focusable="False"/>
+      <local:MpvView x:Name="VideoB" Focusable="False" IsVisible="False"/>
+      <!-- Side by side: the gap between A and B. Wipe: the divider, which can be dragged. -->
+      <Border x:Name="WipeHandle" Width="14" HorizontalAlignment="Left" Background="Transparent" IsVisible="False"
+              Cursor="SizeWestEast" ToolTip.Tip="ドラッグでワイプ位置 ([ / ])">
+        <Rectangle Width="2" Fill="#6BB3F0" HorizontalAlignment="Center"/>
+      </Border>
+      <Border x:Name="TagA" Classes="tag" HorizontalAlignment="Left" IsVisible="False">
+        <TextBlock Text="A" Foreground="{StaticResource Accent}"/>
+      </Border>
+      <Border x:Name="TagB" Classes="tag" HorizontalAlignment="Left" IsVisible="False">
+        <TextBlock Text="B" Foreground="#6BB3F0"/>
+      </Border>
       <TextBlock x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Center"
                  Foreground="#888" FontSize="15" IsHitTestVisible="False"
                  Text="動画をドロップ、または ⌘O で開く"/>

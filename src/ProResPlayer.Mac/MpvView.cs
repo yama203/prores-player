@@ -48,14 +48,19 @@ public sealed unsafe class MpvView : OpenGlControlBase
 		}
 	}
 
+	// GL can come up before a player is attached (e.g. view B, created hidden at startup), so the mpv
+	// render context is made on the first render that has both.
 	protected override void OnOpenGlInit(GlInterface gl)
 	{
 		_gl = gl;
 		_readPixels = Marshal.GetDelegateForFunctionPointer<ReadPixelsFn>(gl.GetProcAddress("glReadPixels"));
 		_bindFramebuffer = Marshal.GetDelegateForFunctionPointer<BindFramebufferFn>(gl.GetProcAddress("glBindFramebuffer"));
-		if (_player == null)
-			return;
+	}
 
+	private void EnsureRenderContext()
+	{
+		if (_render != IntPtr.Zero || _player == null || _gl == null)
+			return;
 		if (!_self.IsAllocated)
 			_self = GCHandle.Alloc(this);
 		byte* api = (byte*)Marshal.StringToCoTaskMemUTF8("opengl");
@@ -82,6 +87,7 @@ public sealed unsafe class MpvView : OpenGlControlBase
 
 	protected override void OnOpenGlRender(GlInterface gl, int fb)
 	{
+		EnsureRenderContext();
 		if (_render == IntPtr.Zero)
 			return;
 

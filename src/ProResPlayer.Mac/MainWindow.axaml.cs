@@ -5,12 +5,20 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ProResPlayer;
 
 public partial class MainWindow : Window
 {
+	private enum CompareMode { Off, Side, Wipe }
+
+	private const double Gap = 2;	// divider between A and B side by side, in DIPs
+
 	private readonly MpvPlayer _a;
+	private MpvPlayer? _b;
+	private string? _pathB, _pendingB, _infoPathB;
+	private CompareMode _compare = CompareMode.Off;
 	private readonly DispatcherTimer _timer;
 	private readonly DispatcherTimer _statusTimer;
 	private readonly AppSettings _settings = AppSettings.Load();
@@ -31,6 +39,9 @@ public partial class MainWindow : Window
 	private readonly NativeMenuItem MenuAlpha = new("アルファのみ") { ToggleType = MenuItemToggleType.Radio };
 	private readonly NativeMenuItem MenuInfo = new("情報パネル") { ToggleType = MenuItemToggleType.CheckBox };
 	private readonly NativeMenuItem MenuLoop = new("ループ再生") { ToggleType = MenuItemToggleType.CheckBox };
+	private readonly NativeMenuItem MenuCmpOff = new("オフ") { ToggleType = MenuItemToggleType.Radio, IsChecked = true };
+	private readonly NativeMenuItem MenuCmpSide = new("左右に並べる") { ToggleType = MenuItemToggleType.Radio };
+	private readonly NativeMenuItem MenuCmpWipe = new("ワイプ") { ToggleType = MenuItemToggleType.Radio };
 
 	private IEnumerable<MenuItem> ViewMenuItems => ((MenuFlyout)ViewButton.Flyout!).Items.OfType<MenuItem>();
 
@@ -51,7 +62,7 @@ public partial class MainWindow : Window
 		};
 
 		Seek.ScrubStarted += OnScrubStarted;
-		Seek.Scrubbing += t => _a.SeekScrub(t);
+		Seek.Scrubbing += t => { _a.SeekScrub(t); if (Comparing) _b!.SeekScrub(t); };
 		Seek.ScrubEnded += OnScrubEnded;
 		VolumeSlider.PropertyChanged += (_, e) =>
 		{
@@ -67,8 +78,17 @@ public partial class MainWindow : Window
 			SetVolume(VolumeSlider.Value + (e.Delta.Y > 0 ? 5 : -5));
 			e.Handled = true;
 		}, RoutingStrategies.Tunnel);
-		VideoArea.Tapped += (_, _) => TogglePlay();
-		VideoArea.DoubleTapped += (_, _) => { TogglePlay(); ToggleFullscreen(); };	// undo the first tap's toggle
+		VideoArea.Tapped += (_, e) => { if (!OnWipeHandle(e.Source)) TogglePlay(); };
+		VideoArea.DoubleTapped += (_, e) => { if (!OnWipeHandle(e.Source)) { TogglePlay(); ToggleFullscreen(); } };	// undo the first tap's toggle
+		VideoArea.SizeChanged += (_, _) => LayoutVideo();
+		WipeSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) LayoutVideo(); };
+		WipeHandle.PointerPressed += (_, e) => { e.Pointer.Capture(WipeHandle); e.Handled = true; };
+		WipeHandle.PointerMoved += (_, e) =>
+		{
+			if (e.Pointer.Captured == WipeHandle && VideoArea.Bounds.Width > 0)
+				WipeSlider.Value = Math.Clamp(e.GetPosition(VideoArea).X / VideoArea.Bounds.Width, 0, 1);
+		};
+		WipeHandle.PointerReleased += (_, e) => { e.Pointer.Capture(null); e.Handled = true; };
 		AddHandler(DragDrop.DropEvent, OnDrop);
 		AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
 
@@ -89,6 +109,8 @@ public partial class MainWindow : Window
 		{
 			_timer.Stop();
 			Video.FreeRenderContext();
+			VideoB.FreeRenderContext();
+			_b?.Dispose();
 			_a.Dispose();
 		};
 
@@ -96,12 +118,21 @@ public partial class MainWindow : Window
 		int st = Array.IndexOf(args, "--selftest");
 		if (st >= 0)
 			Opened += async (_, _) => await SelfTest.Run(this, args.Skip(st + 1).ToArray());
-		else if (files.Length > 0)
-			Open(files[0]);
+		else
+		{
+			if (files.Length > 0)
+				Open(files[0]);
+			if (files.Length > 1)
+				OpenB(files[1]);
+		}
 	}
 
 	internal MpvPlayer PlayerA => _a;
 	internal MpvView View => Video;
+	internal MpvPlayer? PlayerB => _b;
+	internal void OpenBForTest(string path) => OpenB(path);
+	internal void SetCompareForTest(string mode) => _ = SetCompare(ParseCompare(mode));
+	internal void SetWipeForTest(double v) => WipeSlider.Value = v;
 	internal void SetLoopPointForTest(string prop) => SetLoopPoint(prop);
 	internal (long First, long Last)? CutFramesForTest => CutFrames();
 	internal void ShowCutPanelForTest() => SetCutPanel(true);
@@ -126,13 +157,56 @@ public partial class MainWindow : Window
 		_stepTarget = null;
 		ClearLoop();
 		UpdatePlaylist(path);
+		if (_b != null && _b.HasFile)
+		{
+			_b.SeekAbsolute(0);
+			_b.Paused = !Comparing;
+		}
 	}
 
-	private async Task OpenDialog()
+	private void OpenB(string path)
+	{
+		EnsureB();
+		_pathB = path;
+		if (_compare == CompareMode.Off)
+			_ = SetCompare(CompareMode.Side);
+		if (!VideoB.IsReady)
+		{
+			_pendingB = path;	// loaded once the B view can draw (see Open)
+			return;
+		}
+		_b!.Load(path);
+		_infoPathB = null;
+		_b.Paused = _a.Paused;
+		Dispatcher.UIThread.Post(SyncBToA, DispatcherPriority.Background);
+	}
+
+	private void EnsureB()
+	{
+		if (_b != null)
+			return;
+		_b = new MpvPlayer();
+		_b.Set("mute", "yes");	// B is always silent
+		_b.Set("loop-file", LoopButton.IsChecked == true ? "inf" : "no");
+		VideoB.Player = _b;
+		VideoB.Ready += () =>
+		{
+			if (_pendingB != null)
+			{
+				string p = _pendingB;
+				_pendingB = null;
+				OpenB(p);
+			}
+		};
+		ApplyBackground(_b);
+		LayoutVideo();
+	}
+
+	private async Task<string?> PickMovie(string title)
 	{
 		var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
 		{
-			Title = "動画を開く",
+			Title = title,
 			AllowMultiple = false,
 			FileTypeFilter = new[]
 			{
@@ -140,16 +214,28 @@ public partial class MainWindow : Window
 				FilePickerFileTypes.All,
 			},
 		});
-		string? path = files.FirstOrDefault()?.TryGetLocalPath();
-		if (path != null)
+		return files.FirstOrDefault()?.TryGetLocalPath();
+	}
+
+	private async Task OpenBDialog()
+	{
+		if (await PickMovie("比較する動画 (B) を開く") is string path)
+			OpenB(path);
+	}
+
+	private async Task OpenDialog()
+	{
+		if (await PickMovie("動画を開く") is string path)
 			Open(path);
 	}
 
 	private void OnDrop(object? sender, DragEventArgs e)
 	{
-		string? path = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).FirstOrDefault(p => p != null);
-		if (path != null)
-			Open(path);
+		var paths = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray() ?? Array.Empty<string>();
+		if (paths.Length > 0)
+			Open(paths[0]);
+		if (paths.Length > 1)
+			OpenB(paths[1]);	// two files at once: A and B
 	}
 
 	private void UpdatePlaylist(string path)
@@ -187,6 +273,8 @@ public partial class MainWindow : Window
 	// Transport
 	// ------------------------------------------------------------------------------------------
 
+	private bool Comparing => _compare != CompareMode.Off && _b != null && _pathB != null;
+
 	private void TogglePlay()
 	{
 		if (!_a.HasFile)
@@ -194,9 +282,36 @@ public partial class MainWindow : Window
 		bool pause = !_a.Paused;
 		// Pressing play on the last frame (loop off, or after stepping there) starts over from the top.
 		if (!pause && AtEnd())
-			_a.SeekAbsolute(0);
-		_a.Paused = pause;
+			SeekTo(0);
+		SetPaused(pause);
 		_stepTarget = null;
+	}
+
+	/// <summary>Pauses / plays A, and B with it while comparing (B is lined up with A on pause).</summary>
+	private void SetPaused(bool pause)
+	{
+		_a.Paused = pause;
+		if (Comparing)
+		{
+			_b!.Paused = pause;
+			if (pause)
+				SyncBToA();
+		}
+	}
+
+	private void SeekTo(double t)
+	{
+		if (!_a.HasFile)
+			return;
+		_a.SeekAbsolute(Math.Max(0, t));
+		if (Comparing)
+			_b!.SeekAbsolute(Math.Max(0, t));
+	}
+
+	private void SyncBToA()
+	{
+		if (Comparing)
+			_b!.SeekAbsolute(_a.Time);
 	}
 
 	private bool AtEnd()
@@ -216,10 +331,11 @@ public partial class MainWindow : Window
 		if (!_a.HasFile)
 			return;
 		double fps = _a.Fps;
-		_a.Paused = true;
+		SetPaused(true);
 		if (fps <= 0)
 		{
 			if (dir > 0) _a.FrameStep(); else _a.FrameBackStep();
+			SyncBToA();
 			return;
 		}
 		long last = Math.Max(0, (long)Math.Round(_a.Duration * fps) - 1);
@@ -228,7 +344,7 @@ public partial class MainWindow : Window
 		long target = Math.Clamp(current + dir, 0, last);
 		_stepTarget = target;
 		_stepTime = DateTime.UtcNow;
-		_a.SeekAbsolute(FrameTime(target, fps));
+		SeekTo(FrameTime(target, fps));
 	}
 
 	// A hair past the frame's pts so rounding never lands on the previous frame.
@@ -237,24 +353,24 @@ public partial class MainWindow : Window
 	private void SeekBy(double dt)
 	{
 		if (_a.HasFile)
-			_a.SeekAbsolute(Math.Max(0, _a.Time + dt));
+			SeekTo(_a.Time + dt);
 	}
 
 	private void GoStart()
 	{
 		if (!_a.HasFile)
 			return;
-		_a.Paused = true;
-		_a.SeekAbsolute(0);
+		SetPaused(true);
+		SeekTo(0);
 	}
 
 	private void GoEnd()
 	{
 		if (!_a.HasFile)
 			return;
-		_a.Paused = true;
+		SetPaused(true);
 		double fps = _a.Fps;
-		_a.SeekAbsolute(Math.Max(0, _a.Duration - (fps > 0 ? 1.0 / fps : 0.04)));
+		SeekTo(_a.Duration - (fps > 0 ? 1.0 / fps : 0.04));
 	}
 
 	internal long CurrentFrame => _a.Fps > 0 ? (long)Math.Round(_a.Time * _a.Fps) : 0;
@@ -263,16 +379,18 @@ public partial class MainWindow : Window
 	private void OnScrubStarted(double t)
 	{
 		_resumeAfterScrub = !_a.Paused;
-		_a.Paused = true;
+		SetPaused(true);
 		_stepTarget = null;
 		_a.SeekScrub(t);
+		if (Comparing)
+			_b!.SeekScrub(t);
 	}
 
 	private void OnScrubEnded(double t)
 	{
-		_a.SeekAbsolute(t);
+		SeekTo(t);
 		if (_resumeAfterScrub)
-			_a.Paused = false;
+			SetPaused(false);
 	}
 
 	private void OnPlayPause(object? sender, RoutedEventArgs e) => TogglePlay();
@@ -291,25 +409,31 @@ public partial class MainWindow : Window
 	{
 		if (!_a.HasFile)
 			return;
-		_a.Set(prop, _a.Time);
+		double t = _a.Time;
+		_a.Set(prop, t);
+		_b?.Set(prop, t);
 		// Keep A < B.
 		double? a = _a.GetDouble("ab-loop-a"), b = _a.GetDouble("ab-loop-b");
 		if (a.HasValue && b.HasValue && a > b)
 		{
-			_a.Set("ab-loop-a", b.Value);
-			_a.Set("ab-loop-b", a.Value);
+			_a.Set("ab-loop-a", b.Value); _a.Set("ab-loop-b", a.Value);
+			_b?.Set("ab-loop-a", b.Value); _b?.Set("ab-loop-b", a.Value);
 		}
 	}
 
 	private void ClearLoop()
 	{
-		_a.Set("ab-loop-a", "no");
-		_a.Set("ab-loop-b", "no");
+		foreach (var p in new[] { _a, _b })
+		{
+			p?.Set("ab-loop-a", "no");
+			p?.Set("ab-loop-b", "no");
+		}
 	}
 
 	private void SetLoopFile(bool on)
 	{
 		_a.Set("loop-file", on ? "inf" : "no");
+		_b?.Set("loop-file", on ? "inf" : "no");
 		LoopButton.IsChecked = on;
 		MenuLoop.IsChecked = on;
 	}
@@ -385,7 +509,7 @@ public partial class MainWindow : Window
 			await Dialogs.ShowMessage(this, "ffmpeg が見つかりません", "カットには ffmpeg が必要です。開発中は `brew install ffmpeg` で入れてください。\n\n探した場所: " + Cutter.FfmpegPath);
 			return;
 		}
-		_a.Paused = true;
+		SetPaused(true);
 
 		double fps = _a.Fps;
 		long count = last - first + 1;
@@ -435,8 +559,13 @@ public partial class MainWindow : Window
 				await Dialogs.ShowMessage(this, "カットに失敗しました", error);
 				return false;
 			}
+			bool bSame = _b != null && string.Equals(_pathB, source, StringComparison.OrdinalIgnoreCase);
 			if (overwrite)
+			{
 				_a.Command("stop");	// let go of the old file before it is replaced
+				if (bSame)
+					_b!.Command("stop");
+			}
 			try
 			{
 				File.Move(tmp, target, overwrite: true);
@@ -451,7 +580,11 @@ public partial class MainWindow : Window
 				return false;
 			}
 			if (overwrite)
+			{
 				Open(source);
+				if (bSame)
+					OpenB(source);
+			}
 			else
 				UpdatePlaylist(source);	// the new file joins the folder list
 			ShowStatus($"保存しました: {Path.GetFileName(target)} ({count} フレーム)");
@@ -480,9 +613,9 @@ public partial class MainWindow : Window
 			_settings.Background = mode;
 			_settings.Save();
 		}
-		ApplyBackground();
-		foreach (var item in ViewMenuItems)
-			item.IsChecked = (string?)item.Tag == mode;
+		ApplyBackground(_a);
+		ApplyBackground(_b);
+		UpdateViewMenu();
 		MenuChecker.IsChecked = mode == "checker";
 		MenuBlack.IsChecked = mode == "black";
 		MenuWhite.IsChecked = mode == "white";
@@ -495,29 +628,129 @@ public partial class MainWindow : Window
 		SetBackground(order[(Array.IndexOf(order, _background) + 1) % order.Length]);
 	}
 
-	private void ApplyBackground()
+	private void ApplyBackground(MpvPlayer? p)
 	{
-		_a.Command("vf", "remove", "@alpha");
+		if (p == null)
+			return;
+		p.Command("vf", "remove", "@alpha");
 		// VideoToolbox decodes ProRes on the GPU, where lavfi filters can't reach the frames.
 		// For the alpha matte, copy decoded frames back to memory (still hardware-decoded).
-		_a.Set("hwdec", _background == "alpha" ? "videotoolbox-copy" : "auto-safe");
+		p.Set("hwdec", _background == "alpha" ? "videotoolbox-copy" : "auto-safe");
 		if (_background == "alpha")
-			_a.Command("vf", "add", "@alpha:lavfi=[alphaextract]");
+			p.Command("vf", "add", "@alpha:lavfi=[alphaextract]");
 		if (_background == "checker")
 		{
-			if (_a.Set("background", "tiles") < 0)
-				_a.Set("alpha", "blend-tiles");
+			if (p.Set("background", "tiles") < 0)
+				p.Set("alpha", "blend-tiles");
 			return;
 		}
-		_a.Set("background-color", _background == "white" ? "#FFFFFF" : "#000000");
-		if (_a.Set("background", "color") < 0)
-			_a.Set("alpha", "blend");
+		p.Set("background-color", _background == "white" ? "#FFFFFF" : "#000000");
+		if (p.Set("background", "color") < 0)
+			p.Set("alpha", "blend");
+	}
+
+	private void UpdateViewMenu()
+	{
+		string cmp = "cmp:" + _compare.ToString().ToLowerInvariant();
+		foreach (var item in ViewMenuItems)
+			if (item.Tag is string tag && tag != "openb")
+				item.IsChecked = tag == "bg:" + _background || tag == cmp;
+		MenuCmpOff.IsChecked = _compare == CompareMode.Off;
+		MenuCmpSide.IsChecked = _compare == CompareMode.Side;
+		MenuCmpWipe.IsChecked = _compare == CompareMode.Wipe;
 	}
 
 	private void OnViewMenuItem(object? sender, RoutedEventArgs e)
 	{
-		if (sender is MenuItem { Tag: string tag })
-			SetBackground(tag);
+		if (sender is not MenuItem { Tag: string tag })
+			return;
+		if (tag == "openb")
+			_ = OpenBDialog();
+		else if (tag.StartsWith("bg:"))
+			SetBackground(tag[3..]);
+		else
+			_ = SetCompare(ParseCompare(tag[4..]));
+	}
+
+	// ------------------------------------------------------------------------------------------
+	// Compare (A / B)
+	// ------------------------------------------------------------------------------------------
+
+	private static CompareMode ParseCompare(string tag) => tag switch { "side" => CompareMode.Side, "wipe" => CompareMode.Wipe, _ => CompareMode.Off };
+
+	private void CycleCompare() =>
+		_ = SetCompare(_compare switch { CompareMode.Off => CompareMode.Side, CompareMode.Side => CompareMode.Wipe, _ => CompareMode.Off });
+
+	private async Task SetCompare(CompareMode mode)
+	{
+		if (mode != CompareMode.Off && _pathB == null)
+		{
+			string? path = await PickMovie("比較する動画 (B) を開く");
+			if (path == null)
+				mode = CompareMode.Off;
+			else
+			{
+				_compare = mode;	// set first so OpenB does not switch to Side
+				OpenB(path);
+			}
+		}
+		_compare = mode;
+		WipeSlider.IsVisible = mode == CompareMode.Wipe;
+		InfoBPanel.IsVisible = mode != CompareMode.Off;
+		if (_b != null)
+		{
+			if (mode == CompareMode.Off)
+				_b.Paused = true;
+			else
+			{
+				_b.Paused = _a.Paused;
+				SyncBToA();
+			}
+		}
+		UpdateViewMenu();
+		LayoutVideo();
+	}
+
+	private bool OnWipeHandle(object? source) => source is Avalonia.Visual v && (v == WipeHandle || WipeHandle.IsVisualAncestorOf(v));
+
+	/// <summary>
+	/// Side by side: A on the left half, B on the right. Wipe: A and B both cover the whole area (so they
+	/// line up exactly) and B is clipped to the right of the divider.
+	/// </summary>
+	private void LayoutVideo()
+	{
+		double w = VideoArea.Bounds.Width, h = VideoArea.Bounds.Height;
+		bool on = _compare != CompareMode.Off && _b != null;
+		VideoB.IsVisible = on;
+		TagA.IsVisible = TagB.IsVisible = on;
+		WipeHandle.IsVisible = on;
+		if (!on || w <= 0)
+		{
+			Video.Margin = default;
+			VideoB.Clip = null;
+			return;
+		}
+		if (_compare == CompareMode.Side)
+		{
+			double half = (w - Gap) / 2;
+			Video.Margin = new Avalonia.Thickness(0, 0, w - half, 0);
+			VideoB.Margin = new Avalonia.Thickness(w - half, 0, 0, 0);
+			VideoB.Clip = null;
+			WipeHandle.IsHitTestVisible = false;
+			WipeHandle.Margin = new Avalonia.Thickness(half + Gap / 2 - WipeHandle.Width / 2, 0, 0, 0);
+			TagB.Margin = new Avalonia.Thickness(w - half + 10, 10, 0, 0);
+		}
+		else
+		{
+			double x = Math.Round(WipeSlider.Value * w);
+			Video.Margin = default;
+			VideoB.Margin = default;
+			VideoB.Clip = new RectangleGeometry(new Avalonia.Rect(x, 0, Math.Max(0, w - x), h));
+			WipeHandle.IsHitTestVisible = true;
+			WipeHandle.Margin = new Avalonia.Thickness(x - WipeHandle.Width / 2, 0, 0, 0);
+			TagB.Margin = new Avalonia.Thickness(Math.Min(x + 10, w - 40), 10, 0, 0);
+		}
+		TagA.Margin = new Avalonia.Thickness(10);
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -580,21 +813,22 @@ public partial class MainWindow : Window
 		return rows;
 	}
 
-	private void ShowInfo(List<(string Label, string Value)> rows)
+	private void ShowInfo(Grid grid, List<(string Label, string Value)> rows)
 	{
-		InfoHint.IsVisible = false;
-		InfoGrid.Children.Clear();
-		InfoGrid.RowDefinitions.Clear();
+		if (grid == InfoGrid)
+			InfoHint.IsVisible = false;
+		grid.Children.Clear();
+		grid.RowDefinitions.Clear();
 		for (int i = 0; i < rows.Count; i++)
 		{
-			InfoGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+			grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 			var label = new TextBlock { Text = rows[i].Label, FontSize = 12, Foreground = (IBrush)this.FindResource("Dim")!, Margin = new Avalonia.Thickness(0, 2, 12, 2) };
 			var value = new SelectableTextBlock { Text = rows[i].Value, FontFamily = new FontFamily("Menlo"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(0, 2) };
 			Grid.SetRow(label, i);
 			Grid.SetRow(value, i);
 			Grid.SetColumn(value, 1);
-			InfoGrid.Children.Add(label);
-			InfoGrid.Children.Add(value);
+			grid.Children.Add(label);
+			grid.Children.Add(value);
 		}
 	}
 
@@ -647,12 +881,25 @@ public partial class MainWindow : Window
 		if (path != null && path != _infoPath && _a.GetDouble("video-params/dw") is > 0)
 		{
 			_infoPath = path;
-			ShowInfo(BuildInfo(_a));
+			ShowInfo(InfoGrid, BuildInfo(_a));
+		}
+		if (_b != null && _b.Path is string pathB && pathB != _infoPathB && _b.GetDouble("video-params/dw") is > 0)
+		{
+			_infoPathB = pathB;
+			ShowInfo(InfoGridB, BuildInfo(_b));
 		}
 		if (!_a.HasFile)
 			return;
 
 		double t = _a.Time, dur = _a.Duration, fps = _a.Fps;
+		// Keep B within a frame of A while playing.
+		if (Comparing && !_a.Paused && fps > 0)
+		{
+			if (Math.Abs(_b!.Time - t) > 1.5 / fps)
+				_b.SeekAbsolute(t);
+			if (_b.Paused)
+				_b.Paused = false;
+		}
 		if (this.TryFindResource(_a.Paused ? "IconPlay" : "IconPause", out object? g) && g is Geometry geo && PlayIcon.Data != geo)
 			PlayIcon.Data = geo;
 
@@ -715,6 +962,13 @@ public partial class MainWindow : Window
 			new NativeMenuItemSeparator(),
 			MenuInfo, MenuLoop,
 			Item("全画面", ToggleFullscreen, "Cmd+Ctrl+F")));
+		MenuCmpOff.Click += (_, _) => _ = SetCompare(CompareMode.Off);
+		MenuCmpSide.Click += (_, _) => _ = SetCompare(CompareMode.Side);
+		MenuCmpWipe.Click += (_, _) => _ = SetCompare(CompareMode.Wipe);
+		bar.Items.Add(Sub("比較",
+			Item("比較用に開く (B)...", () => _ = OpenBDialog(), "Cmd+Shift+O"),
+			new NativeMenuItemSeparator(),
+			MenuCmpOff, MenuCmpSide, MenuCmpWipe));
 		bar.Items.Add(Sub("ヘルプ", Item("ショートカット一覧", ShowShortcuts)));
 		NativeMenu.SetMenu(this, bar);
 	}
@@ -759,6 +1013,9 @@ public partial class MainWindow : Window
 			case Key.D3 when !cmd: SetBackground("white"); break;
 			case Key.D4 when !cmd: SetBackground("alpha"); break;
 			case Key.A when !cmd: CycleBackground(); break;
+			case Key.C when !cmd: CycleCompare(); break;
+			case Key.OemOpenBrackets: WipeSlider.Value = Math.Max(0, WipeSlider.Value - 0.05); break;
+			case Key.OemCloseBrackets: WipeSlider.Value = Math.Min(1, WipeSlider.Value + 0.05); break;
 			case Key.Tab: SetInfoVisible(!_settings.InfoPanel); break;
 			case Key.F when !cmd: ToggleFullscreen(); break;
 			case Key.Escape when WindowState == WindowState.FullScreen: ToggleFullscreen(); break;
@@ -783,10 +1040,14 @@ public partial class MainWindow : Window
 			"M            ミュート オン / オフ\n" +
 			"⌘↑ / ⌘↓      音量を上げる / 下げる\n" +
 			"1 2 3 4 / A  背景: 市松 / 黒 / 白 / アルファのみ / 切り替え\n" +
+			"C            比較: オフ → 左右 → ワイプ\n" +
+			"[ / ]        ワイプ位置（境目の線をドラッグしても動かせます）\n" +
 			"Tab          情報パネル\n" +
 			"F / ⌘⌃F      全画面 (Esc で戻る)\n" +
-			"⌘O           開く\n\n" +
-			"動画の上でクリック: 再生 / 一時停止、ダブルクリック: 全画面";
+			"⌘O           開く\n" +
+			"⌘⇧O          比較用 (B) を開く\n\n" +
+			"動画の上でクリック: 再生 / 一時停止、ダブルクリック: 全画面\n" +
+			"ファイルを2つ同時にドロップすると A と B に読み込みます。";
 		var dlg = new Window
 		{
 			Title = "ショートカット",

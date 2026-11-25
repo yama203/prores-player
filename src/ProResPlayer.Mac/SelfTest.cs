@@ -80,6 +80,37 @@ internal static class SelfTest
 				}
 			}
 
+			// --- compare: args with "422_pcm" as B over the alpha clip as A ---
+			string? bClip = args.Skip(2).FirstOrDefault(a => a.Contains("pcm"));
+			if (bClip != null)
+			{
+				await Load(w, args[1]);
+				w.OpenBForTest(bClip);
+				for (int i = 0; i < 100 && !(w.PlayerB?.Fps > 0); i++) await Task.Delay(50);
+				await Task.Delay(500);
+				var b = w.PlayerB!;
+				w.SetBackground("checker");
+				p.Paused = false; b.Paused = false;
+				await Task.Delay(2000);
+				double da = Math.Abs(p.Time - b.Time) * p.Fps;
+				Log($"[compare] playing: A={p.Time:0.000} B={b.Time:0.000} diff={da:0.00} f  {(da <= 1.5 ? "OK" : "NG")}");
+				w.Step(1);	// pauses both and lines B up
+				await Task.Delay(300);
+				for (int i = 0; i < 3; i++) { w.Step(1); await Task.Delay(30); }
+				await Task.Delay(800);
+				long fa = (long)Math.Round(p.Time * p.Fps), fb = (long)Math.Round(b.Time * b.Fps);
+				Log($"[compare] after steps: A frame {fa}, B frame {fb}  {(fa == fb ? "OK" : "NG")}");
+				Shot(w, outDir, "compare_side", Log);
+				await Task.Delay(1500);
+				w.SetCompareForTest("wipe");
+				w.SetWipeForTest(0.35);
+				await Task.Delay(800);
+				Shot(w, outDir, "compare_wipe", Log);
+				await Task.Delay(1500);
+				w.SetCompareForTest("off");
+				await Task.Delay(500);
+			}
+
 			w.ShowCutPanelForTest();
 			p.SeekAbsolute(MainWindow.FrameTime(30, p.Fps)); await Task.Delay(300);
 			w.SetLoopPointForTest("ab-loop-a");
@@ -127,6 +158,24 @@ internal static class SelfTest
 		}
 		File.WriteAllText(Path.Combine(outDir, "selftest.txt"), log.ToString());
 		w.Close();
+	}
+
+	[System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
+	private static extern IntPtr sel_registerName(string name);
+	[System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+	private static extern long MsgSendLong(IntPtr obj, IntPtr sel);
+
+	/// <summary>Real screenshot of the window (needs Screen Recording permission for the parent app).</summary>
+	private static void Shot(MainWindow w, string outDir, string name, Action<string> log)
+	{
+		var h = w.TryGetPlatformHandle();
+		if (h == null) { log($"[shot] {name}: no handle ({h?.HandleDescriptor})"); return; }
+		long num = MsgSendLong(h.Handle, sel_registerName("windowNumber"));
+		string path = Path.Combine(outDir, name + ".png");
+		var psi = new ProcessStartInfo("/usr/sbin/screencapture", $"-x -o -l {num} \"{path}\"");
+		using var pr = Process.Start(psi)!;
+		pr.WaitForExit(10000);
+		log($"[shot] {name} ({h.HandleDescriptor} #{num}) exists={File.Exists(path)}");
 	}
 
 	private static long Long(string? s) => long.TryParse(s, out long v) ? v : 0;
