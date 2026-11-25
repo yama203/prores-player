@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>ProRes Player</string>
+	<key>CFBundleDisplayName</key><string>ProRes Player</string>
+	<key>CFBundleIdentifier</key><string>com.yama203.proresplayer</string>
+	<key>CFBundleExecutable</key><string>ProResPlayer</string>
+	<key>CFBundleIconFile</key><string>app.icns</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>@VERSION@</string>
+	<key>CFBundleVersion</key><string>@VERSION@</string>
+	<key>LSMinimumSystemVersion</key><string>12.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.video</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<!-- Shows up in Finder's "Open With" for these files (Alternate: never takes over the default app by itself). -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key><string>Movie</string>
+			<key>CFBundleTypeRole</key><string>Viewer</string>
+			<key>LSHandlerRank</key><string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.quicktime-movie</string>
+				<string>public.mpeg-4</string>
+				<string>com.apple.m4v-video</string>
+				<string>org.matroska.mkv</string>
+				<string>public.avi</string>
+				<string>org.webmproject.webm</string>
+				<string>com.sony.mxf</string>
+				<string>public.movie</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
