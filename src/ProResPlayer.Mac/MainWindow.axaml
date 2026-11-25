@@ -70,6 +70,12 @@
                 <TextBlock Text="ループ" VerticalAlignment="Center"/>
               </StackPanel>
             </ToggleButton>
+            <ToggleButton x:Name="CutButton" Classes="icon" Click="OnCutButton" ToolTip.Tip="範囲（IN / OUT）を決めてカット保存するパネルを出す / 閉じる (X)">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconCut}"/>
+                <TextBlock Text="カット" VerticalAlignment="Center"/>
+              </StackPanel>
+            </ToggleButton>
           </StackPanel>
         </DockPanel>
       </StackPanel>
@@ -98,6 +104,20 @@
       <TextBlock x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Center"
                  Foreground="#888" FontSize="15" IsHitTestVisible="False"
                  Text="動画をドロップ、または ⌘O で開く"/>
+      <!-- Range / cut panel, drawn right over the video (no separate popup window needed on the Mac). -->
+      <Border x:Name="CutPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
+              Background="#E62B2B2B" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Padding="8,6" IsVisible="False">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <Button Content="IN" Focusable="False" ToolTip.Tip="今のフレームを開始点に（ループ / カットの範囲） (I)" Click="OnSetIn"/>
+          <Button Content="OUT" Focusable="False" ToolTip.Tip="今のフレームを終了点に（ループ / カットの範囲） (O)" Click="OnSetOut"/>
+          <Button Content="クリア" Focusable="False" ToolTip.Tip="IN / OUT をクリア (P)" Click="OnClearLoop"/>
+          <TextBlock x:Name="CutRangeText" Text="I / O で範囲を決めてください" FontFamily="Menlo" FontSize="12" Foreground="{StaticResource Dim}"
+                     VerticalAlignment="Center" Margin="10,0" MinWidth="270" TextAlignment="Center"/>
+          <Button x:Name="CutSaveButton" Classes="accent" Content="カットして保存..." Focusable="False" IsEnabled="False"
+                  ToolTip.Tip="IN〜OUT の範囲だけ残して保存（再エンコードなし） (⌘X)" Click="OnCutSave"/>
+        </StackPanel>
+      </Border>
+
       <!-- Short-lived messages (last file, ...) -->
       <Border x:Name="StatusBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Padding="10,5"
               CornerRadius="6" Background="#CC202020" IsVisible="False" IsHitTestVisible="False">

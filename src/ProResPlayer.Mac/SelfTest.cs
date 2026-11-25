@@ -60,12 +60,41 @@ internal static class SelfTest
 			Log($"[loop] IN=30 OUT=40 played frames {minF}..{maxF}  {(minF >= 30 && maxF <= 41 ? "OK" : "NG")}");
 			Log($"[info] {w.InfoTextForTest.Replace("\n", " | ")}");
 
+			// --- cut: args[2] if it has "pcm" in its name: IN 30, OUT 40 -> save as, and overwrite a copy ---
+			string? pcm = args.Skip(2).FirstOrDefault(a => a.Contains("pcm"));
+			if (pcm != null)
+			{
+				string copy = Path.Combine(outDir, "overwrite_" + Path.GetFileName(pcm));
+				File.Copy(pcm, copy, true);
+				foreach (var (src, dst) in new[] { (pcm, Path.Combine(outDir, "cut_saveas.mov")), (copy, copy) })
+				{
+					await Load(w, src);
+					p.SeekAbsolute(MainWindow.FrameTime(30, p.Fps)); await Task.Delay(400);
+					w.SetLoopPointForTest("ab-loop-a");
+					p.SeekAbsolute(MainWindow.FrameTime(40, p.Fps)); await Task.Delay(400);
+					w.SetLoopPointForTest("ab-loop-b");
+					var (first, last) = w.CutFramesForTest!.Value;
+					bool ok = await w.CutToFileAsync(src, dst, first, last - first + 1, p.Fps);
+					await Task.Delay(800);
+					Log($"[cut] {Path.GetFileName(dst)} frames {first}..{last} ok={ok} reopened={Path.GetFileName(p.Path ?? "")} dur={p.Duration:0.###}");
+				}
+			}
+
+			w.ShowCutPanelForTest();
+			p.SeekAbsolute(MainWindow.FrameTime(30, p.Fps)); await Task.Delay(300);
+			w.SetLoopPointForTest("ab-loop-a");
+			p.SeekAbsolute(MainWindow.FrameTime(40, p.Fps)); await Task.Delay(300);
+			w.SetLoopPointForTest("ab-loop-b");
+			await Task.Delay(300);
+
 			// --- whole window (controls only; the GL video comes out blank in this kind of snapshot) ---
 			var size = new Avalonia.PixelSize((int)w.Bounds.Width * 2, (int)w.Bounds.Height * 2);
 			using (var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(192, 192)))
 			{
 				bmp.Render(w);
+				#pragma warning disable CS0618
 				bmp.Save(Path.Combine(outDir, "window.png"));
+#pragma warning restore CS0618
 			}
 			Log("[window] window.png");
 

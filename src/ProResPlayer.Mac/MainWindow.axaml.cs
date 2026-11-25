@@ -103,6 +103,8 @@ public partial class MainWindow : Window
 	internal MpvPlayer PlayerA => _a;
 	internal MpvView View => Video;
 	internal void SetLoopPointForTest(string prop) => SetLoopPoint(prop);
+	internal (long First, long Last)? CutFramesForTest => CutFrames();
+	internal void ShowCutPanelForTest() => SetCutPanel(true);
 	internal string InfoTextForTest => string.Join(" | ", InfoGrid.Children.OfType<TextBlock>().Select(t => t.Text));
 
 	// ------------------------------------------------------------------------------------------
@@ -172,12 +174,13 @@ public partial class MainWindow : Window
 			ShowStatus(delta < 0 ? "最初の動画です" : "最後の動画です");
 	}
 
-	private void ShowStatus(string text)
+	private void ShowStatus(string text, bool sticky = false)
 	{
 		StatusText.Text = text;
 		StatusBox.IsVisible = true;
 		_statusTimer.Stop();
-		_statusTimer.Start();
+		if (!sticky)
+			_statusTimer.Start();
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -314,6 +317,158 @@ public partial class MainWindow : Window
 	private void OnLoopButton(object? sender, RoutedEventArgs e) => SetLoopFile(LoopButton.IsChecked == true);
 
 	// ------------------------------------------------------------------------------------------
+	// Cut: keep IN..OUT and save it without re-encoding
+	// ------------------------------------------------------------------------------------------
+
+	private bool _cutting;
+
+	private void OnCutButton(object? sender, RoutedEventArgs e) => SetCutPanel(CutButton.IsChecked == true);
+	private void OnSetIn(object? sender, RoutedEventArgs e) => SetLoopPoint("ab-loop-a");
+	private void OnSetOut(object? sender, RoutedEventArgs e) => SetLoopPoint("ab-loop-b");
+	private void OnClearLoop(object? sender, RoutedEventArgs e) => ClearLoop();
+	private void OnCutSave(object? sender, RoutedEventArgs e) => _ = CutAsync();
+
+	private void SetCutPanel(bool on)
+	{
+		CutButton.IsChecked = on;
+		CutPanel.IsVisible = on && WindowState != WindowState.FullScreen;
+	}
+
+	/// <summary>First and last frame (both kept) of the IN / OUT range, or null without a range.</summary>
+	private (long First, long Last)? CutFrames()
+	{
+		double fps = _a.Fps, dur = _a.Duration;
+		double? a = _a.GetDouble("ab-loop-a"), b = _a.GetDouble("ab-loop-b");
+		if (fps <= 0 || dur <= 0 || (!a.HasValue && !b.HasValue))
+			return null;
+		long total = Math.Max(1, (long)Math.Round(dur * fps));
+		long first = a.HasValue ? Math.Clamp((long)Math.Round(a.Value * fps), 0, total - 1) : 0;
+		long last = b.HasValue ? Math.Clamp((long)Math.Round(b.Value * fps), 0, total - 1) : total - 1;	// OUT frame is kept
+		return last < first ? (last, first) : (first, last);
+	}
+
+	private void UpdateCutRange(double dur, double fps)
+	{
+		if (!CutPanel.IsVisible)
+			return;
+		if (CutFrames() is not var (first, last))
+		{
+			CutRangeText.Text = "I / O で範囲を決めてください";
+			CutSaveButton.IsEnabled = false;
+			return;
+		}
+		CutRangeText.Text = $"{Timecode(first, fps)} 〜 {Timecode(last, fps)}  ({last - first + 1} f)";
+		CutSaveButton.IsEnabled = !_cutting;
+	}
+
+	private async Task CutAsync()
+	{
+		if (_cutting || _a.Path is not string source || !_a.HasFile)
+			return;
+		if (!File.Exists(source))
+		{
+			ShowStatus("ローカルのファイルだけカットできます");
+			return;
+		}
+		if (_a.Fps <= 0 || _a.Duration <= 0)
+		{
+			ShowStatus("この動画はカットできません");
+			return;
+		}
+		if (CutFrames() is not var (first, last))
+		{
+			ShowStatus("先に IN / OUT (I / O キー) で範囲を指定してください");
+			return;
+		}
+		if (!Cutter.Available)
+		{
+			await Dialogs.ShowMessage(this, "ffmpeg が見つかりません", "カットには ffmpeg が必要です。開発中は `brew install ffmpeg` で入れてください。\n\n探した場所: " + Cutter.FfmpegPath);
+			return;
+		}
+		_a.Paused = true;
+
+		double fps = _a.Fps;
+		long count = last - first + 1;
+		string codec = _a.Get("current-tracks/video/codec") ?? _a.Get("video-codec") ?? "";
+		string? warning = Cutter.IsIntraOnly(codec) ? null :
+			$"この動画 ({codec}) はキーフレームの位置でしか切れないため、IN より少し前から、OUT より少し後まで入ることがあります。";
+		string range = $"{Timecode(first, fps)} 〜 {Timecode(last, fps)}   ({first} 〜 {last} f、{count} フレーム)";
+
+		var choice = await Dialogs.AskCut(this, Path.GetFileName(source), range, warning);
+		if (choice == CutChoice.Cancel)
+			return;
+
+		string target = source;
+		if (choice == CutChoice.SaveAs)
+		{
+			string ext = Path.GetExtension(source);
+			var folder = await StorageProvider.TryGetFolderFromPathAsync(Path.GetDirectoryName(source)!);
+			var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+			{
+				Title = "カットした動画を保存",
+				SuggestedFileName = Path.GetFileNameWithoutExtension(source) + "_cut" + ext,
+				SuggestedStartLocation = folder,
+				DefaultExtension = ext.TrimStart('.'),
+				FileTypeChoices = new[] { new FilePickerFileType(ext.TrimStart('.').ToUpperInvariant()) { Patterns = new[] { "*" + ext } } },
+			});
+			if (file?.TryGetLocalPath() is not string chosen)
+				return;
+			target = chosen;
+		}
+		await CutToFileAsync(source, target, first, count, fps);
+	}
+
+	/// <summary>Writes the cut next to the target first, so a failed cut never destroys an existing file.</summary>
+	internal async Task<bool> CutToFileAsync(string source, string target, long first, long count, double fps)
+	{
+		bool overwrite = string.Equals(Path.GetFullPath(target), Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase);
+		string tmp = Path.Combine(Path.GetDirectoryName(target)!, "." + Path.GetFileNameWithoutExtension(target) + ".cutting" + Path.GetExtension(target));
+		_cutting = true;
+		ShowStatus("カット中...", sticky: true);
+		try
+		{
+			string? error = await Cutter.CutAsync(source, tmp, first, count, fps, _a.Get("current-tracks/audio/codec"));
+			if (error != null)
+			{
+				TryDelete(tmp);
+				ShowStatus("カットに失敗しました");
+				await Dialogs.ShowMessage(this, "カットに失敗しました", error);
+				return false;
+			}
+			if (overwrite)
+				_a.Command("stop");	// let go of the old file before it is replaced
+			try
+			{
+				File.Move(tmp, target, overwrite: true);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+			{
+				ShowStatus("保存に失敗しました");
+				await Dialogs.ShowMessage(this, "保存に失敗しました",
+					$"{Path.GetFileName(target)} を置き換えられませんでした。\n{ex.Message}\n\nカット結果は次の名前で残してあります:\n{tmp}");
+				if (overwrite)
+					Open(source);
+				return false;
+			}
+			if (overwrite)
+				Open(source);
+			else
+				UpdatePlaylist(source);	// the new file joins the folder list
+			ShowStatus($"保存しました: {Path.GetFileName(target)} ({count} フレーム)");
+			return true;
+		}
+		finally
+		{
+			_cutting = false;
+		}
+	}
+
+	private static void TryDelete(string path)
+	{
+		try { File.Delete(path); } catch { }
+	}
+
+	// ------------------------------------------------------------------------------------------
 	// Background / alpha (same mpv settings as the Windows build)
 	// ------------------------------------------------------------------------------------------
 
@@ -389,6 +544,7 @@ public partial class MainWindow : Window
 		WindowState = full ? WindowState.FullScreen : WindowState.Normal;
 		ControlBar.IsVisible = !full;
 		SetInfoVisible(_settings.InfoPanel);
+		SetCutPanel(CutButton.IsChecked == true);
 	}
 
 	private static List<(string Label, string Value)> BuildInfo(MpvPlayer p)
@@ -501,6 +657,7 @@ public partial class MainWindow : Window
 			PlayIcon.Data = geo;
 
 		Seek.Update(dur, t, fps, _a.GetDouble("ab-loop-a"), _a.GetDouble("ab-loop-b"));
+		UpdateCutRange(dur, fps);
 
 		long frame = fps > 0 ? (long)Math.Round(t * fps) : 0;
 		long total = fps > 0 ? (long)Math.Round(dur * fps) : 0;
@@ -549,6 +706,8 @@ public partial class MainWindow : Window
 		bar.Items.Add(Sub("ファイル",
 			Item("開く...", () => _ = OpenDialog(), "Cmd+O"),
 			new NativeMenuItemSeparator(),
+			Item("IN〜OUT をカットして保存...", () => _ = CutAsync()),
+			new NativeMenuItemSeparator(),
 			Item("同じフォルダの前の動画", () => OpenNeighbor(-1)),
 			Item("同じフォルダの次の動画", () => OpenNeighbor(1))));
 		bar.Items.Add(Sub("表示",
@@ -573,6 +732,8 @@ public partial class MainWindow : Window
 			return;	// ⌘⌃F etc. belong to the menu bar
 		switch (e.Key)
 		{
+			case Key.X when cmd: _ = CutAsync(); break;
+			case Key.X: SetCutPanel(CutButton.IsChecked != true); break;
 			case Key.Space: TogglePlay(); break;
 			case Key.Left when cmd: OpenNeighbor(-1); break;
 			case Key.Right when cmd: OpenNeighbor(1); break;
@@ -615,7 +776,9 @@ public partial class MainWindow : Window
 			"↑ / ↓        10秒進む / 戻る\n" +
 			"Home / End   先頭 / 末尾\n" +
 			"⌘← / ⌘→      同じフォルダの前 / 次の動画（PageUp / PageDown でも可）\n" +
-			"I / O / P    ループ開始 / 終了 / クリア\n" +
+			"I / O / P    ループ開始 / 終了 / クリア（カットの範囲も同じ）\n" +
+			"X            カットのパネル（IN / OUT / 保存）を出す / 閉じる\n" +
+			"⌘X           IN〜OUT だけ残して保存（再エンコードなし）\n" +
 			"L            ループ再生 オン / オフ\n" +
 			"M            ミュート オン / オフ\n" +
 			"⌘↑ / ⌘↓      音量を上げる / 下げる\n" +
