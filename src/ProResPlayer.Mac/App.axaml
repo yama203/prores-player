@@ -1,0 +1,65 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ProResPlayer.App"
+             Name="ProRes Player"
+             RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Bg" Color="#1C1C1C"/>
+    <SolidColorBrush x:Key="Panel" Color="#202020"/>
+    <SolidColorBrush x:Key="Fg" Color="#E6E6E6"/>
+    <SolidColorBrush x:Key="Dim" Color="#9A9A9A"/>
+    <SolidColorBrush x:Key="Accent" Color="#E8A33D"/>
+    <SolidColorBrush x:Key="Line" Color="#333333"/>
+    <Color x:Key="SystemAccentColor">#E8A33D</Color>
+    <Color x:Key="SystemAccentColorLight1">#EDB25A</Color>
+    <Color x:Key="SystemAccentColorLight2">#F0C07A</Color>
+    <Color x:Key="SystemAccentColorLight3">#F5CF94</Color>
+    <Color x:Key="SystemAccentColorDark1">#C98A2C</Color>
+    <Color x:Key="SystemAccentColorDark2">#A8721F</Color>
+    <Color x:Key="SystemAccentColorDark3">#7F5614</Color>
+
+    <!-- Icons (24x24). Segoe Fluent Icons is Windows-only, so they are drawn as paths. -->
+    <StreamGeometry x:Key="IconPlay">M7,4 L20,12 L7,20 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconPause">M6,4 H10 V20 H6 Z M14,4 H18 V20 H14 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconStepBack">M18,5 L9,12 L18,19 Z M5,5 H7.5 V19 H5 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconStepForward">M6,5 L15,12 L6,19 Z M16.5,5 H19 V19 H16.5 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconStart">M3,5 H5.5 V19 H3 Z M13,5 L6,12 L13,19 Z M21,5 L14,12 L21,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconEnd">M18.5,5 H21 V19 H18.5 Z M11,5 L18,12 L11,19 Z M3,5 L10,12 L3,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconPrevFile">M15,4 L7,12 L15,20 L16.6,18.4 L10.2,12 L16.6,5.6 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconNextFile">M9,4 L17,12 L9,20 L7.4,18.4 L13.8,12 L7.4,5.6 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconLoop">M6,7 H17 V3.5 L21.5,8.5 L17,13.5 V10 H6 Z M18,17 H7 V20.5 L2.5,15.5 L7,10.5 V14 H18 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconSpeaker">M2,9 H6 L11.5,4.5 V19.5 L6,15 H2 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconVolume1">M2,9 H6 L11.5,4.5 V19.5 L6,15 H2 Z M14.2,9 A4,4 0 0 1 14.2,15 L13.2,13.9 A2.6,2.6 0 0 0 13.2,10.1 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconVolume2">M2,9 H6 L11.5,4.5 V19.5 L6,15 H2 Z M14.2,9 A4,4 0 0 1 14.2,15 L13.2,13.9 A2.6,2.6 0 0 0 13.2,10.1 Z M16.6,6.3 A8,8 0 0 1 16.6,17.7 L15.5,16.6 A6.5,6.5 0 0 0 15.5,7.4 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconVolume3">M2,9 H6 L11.5,4.5 V19.5 L6,15 H2 Z M14.2,9 A4,4 0 0 1 14.2,15 L13.2,13.9 A2.6,2.6 0 0 0 13.2,10.1 Z M16.6,6.3 A8,8 0 0 1 16.6,17.7 L15.5,16.6 A6.5,6.5 0 0 0 15.5,7.4 Z M19,3.6 A12,12 0 0 1 19,20.4 L17.9,19.3 A10.5,10.5 0 0 0 17.9,4.7 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconMute">M2,9 H6 L11.5,4.5 V19.5 L6,15 H2 Z M14,9.4 L15.4,8 L18,10.6 L20.6,8 L22,9.4 L19.4,12 L22,14.6 L20.6,16 L18,13.4 L15.4,16 L14,14.6 L16.6,12 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconInfo">F0 M12,2 A10,10 0 1 1 12,22 A10,10 0 1 1 12,2 Z M12,3.8 A8.2,8.2 0 1 0 12,20.2 A8.2,8.2 0 1 0 12,3.8 Z M10.9,10 H13.1 V17 H10.9 Z M10.9,6.6 H13.1 V8.6 H10.9 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconView">F0 M3,3 H21 V21 H3 Z M4.6,4.6 V19.4 H19.4 V4.6 Z M4.6,4.6 H12 V12 H4.6 Z M12,12 H19.4 V19.4 H12 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconChevronUp">M5,15 L12,8 L19,15 L17.6,16.4 L12,10.8 L6.4,16.4 Z</StreamGeometry>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="PathIcon">
+      <Setter Property="Width" Value="15"/>
+      <Setter Property="Height" Value="15"/>
+    </Style>
+    <Style Selector="Button.icon, ToggleButton.icon">
+      <Setter Property="MinWidth" Value="34"/>
+      <Setter Property="Padding" Value="8,5"/>
+      <Setter Property="Margin" Value="1,0"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.icon:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Rectangle.divider">
+      <Setter Property="Width" Value="1"/>
+      <Setter Property="Height" Value="22"/>
+      <Setter Property="Margin" Value="8,0"/>
+      <Setter Property="Fill" Value="{StaticResource Line}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+  </Application.Styles>
+</Application>

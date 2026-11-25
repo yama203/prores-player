@@ -1,0 +1,108 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ProResPlayer"
+        x:Class="ProResPlayer.MainWindow"
+        Title="ProRes Player"
+        Width="1280" Height="800" MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
+        DragDrop.AllowDrop="True">
+
+
+  <DockPanel>
+    <!-- Transport / controls -->
+    <Border x:Name="ControlBar" DockPanel.Dock="Bottom" Background="{StaticResource Panel}" Padding="10,6,10,8">
+      <StackPanel>
+        <local:SeekBar x:Name="Seek" Margin="0,0,0,2"/>
+
+        <!-- One row: transport, files | loop (centred) | volume, view, info. -->
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+            <Button Classes="icon" Click="OnGoStart" ToolTip.Tip="先頭 (Home)"><PathIcon Data="{StaticResource IconStart}"/></Button>
+            <Button Classes="icon" Click="OnStepBack" ToolTip.Tip="1フレーム戻る (←)"><PathIcon Data="{StaticResource IconStepBack}"/></Button>
+            <Button Classes="icon" Click="OnPlayPause" MinWidth="44" ToolTip.Tip="再生 / 一時停止 (Space)">
+              <PathIcon x:Name="PlayIcon" Data="{StaticResource IconPlay}" Width="17" Height="17"/>
+            </Button>
+            <Button Classes="icon" Click="OnStepForward" ToolTip.Tip="1フレーム進む (→)"><PathIcon Data="{StaticResource IconStepForward}"/></Button>
+            <Button Classes="icon" Click="OnGoEnd" ToolTip.Tip="末尾 (End)"><PathIcon Data="{StaticResource IconEnd}"/></Button>
+            <StackPanel VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="150">
+              <TextBlock x:Name="TimecodeText" Text="00:00:00:00" FontFamily="Menlo" FontSize="17" LineHeight="20"/>
+              <TextBlock x:Name="FrameText" Text="0 / 0" FontFamily="Menlo" FontSize="11" Foreground="{StaticResource Dim}"/>
+            </StackPanel>
+            <Rectangle Classes="divider"/>
+            <Button x:Name="PrevFileButton" Classes="icon" Click="OnPrevFile" IsEnabled="False"><PathIcon Data="{StaticResource IconPrevFile}"/></Button>
+            <TextBlock x:Name="FilePosText" FontFamily="Menlo" FontSize="12" Foreground="{StaticResource Dim}"
+                       VerticalAlignment="Center" MinWidth="44" TextAlignment="Center" ToolTip.Tip="同じフォルダの中で何本目か"/>
+            <Button x:Name="NextFileButton" Classes="icon" Click="OnNextFile" IsEnabled="False"><PathIcon Data="{StaticResource IconNextFile}"/></Button>
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button x:Name="MuteButton" Classes="icon" Click="OnMuteButton"><PathIcon x:Name="MuteIcon" Data="{StaticResource IconVolume3}"/></Button>
+            <Slider x:Name="VolumeSlider" Width="84" Minimum="0" Maximum="100" Value="100" Focusable="False"
+                    VerticalAlignment="Center" Margin="2,-6,0,-6" SmallChange="5" LargeChange="10"
+                    IsSnapToTickEnabled="True" TickFrequency="1"/>
+            <Rectangle Classes="divider"/>
+            <Button x:Name="ViewButton" Classes="icon" ToolTip.Tip="背景（アルファの確認）の切り替え">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconView}"/>
+                <TextBlock Text="表示" VerticalAlignment="Center"/>
+                <PathIcon Data="{StaticResource IconChevronUp}" Width="10" Height="10"/>
+              </StackPanel>
+              <Button.Flyout>
+                <MenuFlyout Placement="TopEdgeAlignedRight">
+                  <MenuItem Header="背景: 市松模様" InputGesture="1" Tag="checker" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="背景: 黒" InputGesture="2" Tag="black" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="背景: 白" InputGesture="3" Tag="white" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                  <MenuItem Header="アルファのみ" InputGesture="4" Tag="alpha" ToggleType="Radio" GroupName="bg" Click="OnViewMenuItem"/>
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
+            <Rectangle Classes="divider"/>
+            <ToggleButton x:Name="InfoButton" Classes="icon" Click="OnInfoButton" ToolTip.Tip="情報パネルを出す / 閉じる (Tab)">
+              <PathIcon Data="{StaticResource IconInfo}"/>
+            </ToggleButton>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+            <ToggleButton x:Name="LoopButton" Classes="icon" IsChecked="True" Click="OnLoopButton" ToolTip.Tip="ループ再生 オン / オフ (L)。I / O で範囲、P でクリア">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconLoop}"/>
+                <TextBlock Text="ループ" VerticalAlignment="Center"/>
+              </StackPanel>
+            </ToggleButton>
+          </StackPanel>
+        </DockPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Info panel -->
+    <Border x:Name="InfoPanel" DockPanel.Dock="Right" Width="270" Background="{StaticResource Panel}" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,2">
+            <Button DockPanel.Dock="Right" Content="✕" MinWidth="24" Height="22" Padding="0" Background="Transparent"
+                    Focusable="False" ToolTip.Tip="情報パネルを閉じる (Tab)" Click="OnInfoButton"/>
+            <TextBlock Text="A" FontWeight="Bold" Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+          </DockPanel>
+          <TextBlock x:Name="InfoHint" FontSize="12" Foreground="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0"
+                     Text="ファイルをドロップするか ⌘O で開きます"/>
+          <!-- label | value rows, filled in code -->
+          <Grid x:Name="InfoGrid" ColumnDefinitions="Auto,*" Margin="0,4,0,16"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- Video area. The video is an ordinary control here, so things can be drawn on top of it. -->
+    <Panel x:Name="VideoArea" Background="Black" ClipToBounds="True">
+      <local:MpvView x:Name="Video" Focusable="False"/>
+      <TextBlock x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Center"
+                 Foreground="#888" FontSize="15" IsHitTestVisible="False"
+                 Text="動画をドロップ、または ⌘O で開く"/>
+      <!-- Short-lived messages (last file, ...) -->
+      <Border x:Name="StatusBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Padding="10,5"
+              CornerRadius="6" Background="#CC202020" IsVisible="False" IsHitTestVisible="False">
+        <TextBlock x:Name="StatusText" Foreground="{StaticResource Accent}" MaxWidth="600" TextTrimming="CharacterEllipsis"/>
+      </Border>
+    </Panel>
+  </DockPanel>
+</Window>
