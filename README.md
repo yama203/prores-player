@@ -79,6 +79,66 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 - フレームの保存は `screenshot-sw=yes` にしています（GPU で撮ると背景の市松模様が焼き込まれてアルファが消えるため）。
 - コマ送りは mpv の `frame-step` ではなく、フレーム番号を計算して絶対位置にシークしています（連打したときの取りこぼし対策）。
 
+## Mac 版の方針（未着手）
+
+Mac 版を作るときは、Mac 上で開発・ビルドする前提で、次の方針で進める（2026-11 に決めたもの）。
+
+### 方式：Avalonia UI（C#）＋ libmpv
+
+- 今の UI は WPF（Windows 専用）なので、画面は [Avalonia UI](https://avaloniaui.net/) で作り直す。XAML の書き方は WPF に近い。
+- 再生エンジンは今と同じ libmpv。ProRes 以外（DXV、mkv、H.264 / HEVC など）も今と同じように再生でき、カット・マークアップ・A/B 比較などの機能も同じ形で持っていける。
+- Swift ＋ AVFoundation（Mac 純正）にしなかった理由：全部書き直しになるうえ、DXV など Apple が対応していない形式を再生できないため。
+- 将来は Windows 版も Avalonia に移せば、1 つのコードで両方を出せる（今すぐはやらない）。
+
+### 使い回せるもの・作り直すもの
+
+| そのまま、またはほぼそのまま使う | 作り直す |
+|---|---|
+| `Cutter.cs`（ffmpeg でのカット。ffmpeg のパスだけ変える） | `MainWindow` / `CutDialog` / `MarkupWindow` の画面（Avalonia 版に移植） |
+| `AppSettings.cs`（保存先を `~/Library/Application Support/ProResPlayer/` に） | `VideoHost.cs`（動画の表示。下を参照） |
+| `FolderPlaylist.cs`（名前順の比較は Windows の `StrCmpLogicalW` の代わりを自前で書く） | `FileAssociation.cs`（Mac では `Info.plist` の `CFBundleDocumentTypes` で宣言） |
+| `MpvPlayer.cs` / `LibMpv.cs` の大部分（libmpv の API は同じ。dll 名だけ `libmpv.dylib` に） | `ClipboardImage.cs`（Avalonia のクリップボードで PNG を入れる） |
+| タイムコード計算、コマ送り、ループ、比較の同期などのロジック | インストーラー（`.app` を入れた `.dmg` にする） |
+
+### 動画の表示（いちばん大きな作り直し）
+
+- Windows 版は mpv に子ウィンドウ（`wid`）へ直接描かせているが、Mac では `wid` での埋め込みはうまく動かない。
+- Mac 版は mpv の **render API**（`mpv_render_context`、OpenGL）を使い、Avalonia の `OpenGlControlBase` に描かせる。
+- こうすると動画が普通の UI 部品になるので、Windows 版の「動画の上に WPF の部品を重ねられない」制約がなくなる。
+  ワイプの境界線、カットのパネル、範囲の表示などを動画の上に直接重ねられ、`video-zoom` / `video-pan-x` で合わせている
+  ワイプの仕組みも、1 つの部品の中で 2 つの映像を描く形に単純化できる。
+- macOS の OpenGL は非推奨扱いだが、現状は動く。将来問題になったら Metal（mpv の対応状況を確認）を検討する。
+
+### 依存物の入手
+
+- libmpv：まずは Homebrew の `brew install mpv` の `libmpv.dylib` で開発する。配布時は `.app` の中に dylib と依存ライブラリを同梱し、
+  `install_name_tool` でパスを直す（または同梱済みの libmpv ビルドを探す）。
+- ffmpeg（カット用）：Mac 用の静的ビルドを `.app` に同梱する。GPL なので、今と同じくライセンスとソースの入手先を README とリリースノートに書く。
+- Apple Silicon（arm64）を主な対象にし、Intel Mac は必要になったら考える。
+
+### Mac 特有の対応
+
+- ショートカットは Ctrl の代わりに Cmd（Cmd+C / Cmd+S / Cmd+E / Cmd+X など）。
+- メニューは Mac の画面上部のメニューバー（Avalonia の `NativeMenu`）に出す。
+- アイコンは `assets/app_256.png` などから `.icns` を作る（`tools/icon-design.ps1` のデザイン B）。
+
+### 配布
+
+- 署名・公証（Apple Developer Program、年 99 ドル）なしでも使えるが、初回に「開発元を確認できません」と出て、
+  ユーザーが「システム設定 → プライバシーとセキュリティ」から許可する必要がある。広く配るなら署名・公証を検討する。
+
+### 進め方
+
+1. まず「動画を開いて、再生・一時停止・コマ送り・シークができる」ところまでを作り、render API での表示に問題がないか確かめる
+   （ProRes 4444 のアルファと市松模様の背景、4K の ProRes が滑らかに再生できるか）。
+2. 問題なければ、下のバー → 情報パネル → ループ・カット → A/B 比較 → PNG 保存・コピー・マークアップ → 音量 → 設定の保存 の順に移す。
+3. 最後に `.app` / `.dmg` を作るスクリプトを用意してリリースする。
+
+### C4D プラグイン（c4d-prores）の Mac 版
+
+作らなくてよい可能性が高い。Mac 版の Cinema 4D は OS 標準の機能（AVFoundation）で ProRes（4444 を含む）を書き出せるため。
+必要になったら、まず Mac の C4D で標準の書き出しが使えるか（アルファ、色）を確かめてから判断する。
+
 ## ライセンス
 
 このアプリのソースコードは [GPL-3.0](LICENSE) です（GPL ビルドの libmpv を使っているため）。
