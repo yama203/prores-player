@@ -79,7 +79,25 @@ ProRes 以外にも、FFmpeg が読めるもの（H.264 / H.265 の mp4、mkv、
 - フレームの保存は `screenshot-sw=yes` にしています（GPU で撮ると背景の市松模様が焼き込まれてアルファが消えるため）。
 - コマ送りは mpv の `frame-step` ではなく、フレーム番号を計算して絶対位置にシークしています（連打したときの取りこぼし対策）。
 
-## Mac 版の方針（未着手）
+## Mac 版（`mac` ブランチ、`src/ProResPlayer.Mac`）
+
+Avalonia UI ＋ libmpv（render API）。機能は Windows 版と同じで、ショートカットの Ctrl は ⌘ に置き換え。
+
+必要なもの：.NET 10 SDK、Homebrew の mpv と ffmpeg（`brew install dotnet mpv ffmpeg`）
+
+```bash
+tools/mac/make-app.sh          # ~/Applications/ProRes Player.app を作る（libmpv・ffmpeg も中に入れる）
+tools/mac/make-app.sh --dmg    # dist/mac/ProResPlayer-<バージョン>-mac-arm64.dmg を作る
+```
+
+- libmpv・ffmpeg とそれが使うライブラリは、Homebrew のものを `tools/mac/bundle-libs.py` が `.app` の中にコピーする。
+  同梱したものの一覧と版は `.app` の `Contents/Resources/THIRD-PARTY.txt`。
+- Homebrew のライブラリは、ビルドした Mac の macOS のバージョン以降でしか動かない（`LSMinimumSystemVersion` に自動で入る）。
+- 署名は ad-hoc のみで公証していないので、初回は右クリック →「開く」が必要（dmg の「はじめにお読みください.txt」に書いてある）。
+- 開発中の動作確認：`--selftest <出力フォルダ> <アルファ付きの動画> [音声付きの動画 ...]` で、表示・コマ送り・ループ・カット・
+  比較・PNG / コピー・再生の滑らかさを自動で確かめる（`PRORESPLAYER_SETTINGS` で設定ファイルの場所を変えられる）。
+
+## Mac 版の方針（2026-11 に決めたもの）
 
 Mac 版を作るときは、Mac 上で開発・ビルドする前提で、次の方針で進める（2026-11 に決めたもの）。
 
